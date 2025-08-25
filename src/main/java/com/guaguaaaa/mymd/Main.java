@@ -1,32 +1,38 @@
 package com.guaguaaaa.mymd;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.guaguaaaa.mymd.pandoc.PandocNode;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
 
-// 注意：这里的 MyMDLexer 和 MyMDParser 是 ANTLR 根据 MyMD.g4 文件生成的，
-// 需要先运行 Maven 构建才能引入。
 import com.guaguaaaa.mymd.MyMDLexer;
 import com.guaguaaaa.mymd.MyMDParser;
 
 public class Main {
     public static void main(String[] args) throws Exception {
-        // 1. 创建一个输入流，这里用一个简单的字符串作为例子
-        String input = "这是**一段**重要的文本。\n这是第二行。";
+        // 1. 准备输入
+        String input = "这是**一段**重要的文本。\n另一行**粗体**内容。";
+
+        // 2. 创建词法分析器和语法分析器 (不变)
         MyMDLexer lexer = new MyMDLexer(CharStreams.fromString(input));
-
-        // 2. 创建一个词法符号流
         CommonTokenStream tokens = new CommonTokenStream(lexer);
-
-        // 3. 创建语法分析器
         MyMDParser parser = new MyMDParser(tokens);
-
-        // 4. 开始解析，得到解析树
         ParseTree tree = parser.document();
 
-        // 5. 打印解析树的结构（用于调试）
-        System.out.println(tree.toStringTree(parser));
+        // 3. 创建我们的Visitor实例
+        PandocAstVisitor visitor = new PandocAstVisitor();
 
-        // 接下来你可以创建一个 Visitor 或 Listener 来遍历这棵树，并进行实际的操作。
+        // 4. 调用visit方法开始遍历，并获取最终的Pandoc AST根节点
+        PandocNode ast = visitor.visit(tree);
+
+        // 5. 使用Gson将Java对象转换为JSON字符串
+        // prettyPrinting()是为了让输出的JSON格式更易读
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        String jsonOutput = gson.toJson(ast);
+
+        // 6. 打印JSON结果
+        System.out.println(jsonOutput);
     }
 }

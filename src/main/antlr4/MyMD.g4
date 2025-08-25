@@ -4,6 +4,8 @@ grammar MyMD;
 package com.guaguaaaa.mymd;
 }
 
+// ... grammar MyMD; 和 @header 不变 ...
+
 document : block+ EOF ;
 
 block
@@ -11,20 +13,25 @@ block
     ;
 
 paragraph
-    : inline+ (NEWLINE inline+)* (NEWLINE NEWLINE+)?  // 单换行折叠，双换行分段
+    : inline+ (NEWLINE inline+)* (NEWLINE NEWLINE+)?
     ;
 
 inline
-    : bold
-    | ESCAPED
-    | TEXT
+    : bold                      # BoldInline
+    | ESCAPED                   # EscapedInline
+    | TEXT                      # TextInline
+    | SPACE                     # SpaceInline   // <-- 新增
     ;
 
 bold : '**' inline+ '**' ;
 
-ESCAPED : '\\' . ;     // 转义符
-TEXT    : ~[*\\\r\n]+ ; // 普通文字
+ESCAPED : '\\' . ;
+// 修改TEXT，让它不包含空格和制表符
+TEXT    : ~[*\\ \t\r\n]+ ;
+// 新增SPACE规则
+SPACE   : [ \t]+ ;
 
 NEWLINE : '\r'? '\n' ;
 
-WS : [ \t]+ -> skip ;
+// 注释掉原来的WS -> skip，因为我们现在想自己处理空格
+// WS : [ \t]+ -> skip ;
