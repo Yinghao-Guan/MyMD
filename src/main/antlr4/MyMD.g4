@@ -1,5 +1,9 @@
 grammar MyMD;
 
+@header {
+package com.guaguaaaa.mymd;
+}
+
 document : block+ EOF ;
 
 block
