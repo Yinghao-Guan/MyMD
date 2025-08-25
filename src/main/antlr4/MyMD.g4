@@ -4,34 +4,47 @@ grammar MyMD;
 package com.guaguaaaa.mymd;
 }
 
-// ... grammar MyMD; 和 @header 不变 ...
+// ===== Parser Rules (解析器规则) =====
 
-document : block+ EOF ;
+document
+    : block+ EOF
+    ;
 
 block
-    : paragraph
+    : paragraph PARAGRAPH_END
+    | paragraph EOF
     ;
 
 paragraph
-    : inline+ (NEWLINE inline+)* (NEWLINE NEWLINE+)?
+    : inline+
     ;
 
 inline
     : bold                      # BoldInline
+    | HARD_BREAK                # HardBreakInline
+    | SOFT_BREAK                # SoftBreakInline
     | ESCAPED                   # EscapedInline
     | TEXT                      # TextInline
-    | SPACE                     # SpaceInline   // <-- 新增
+    | SPACE                     # SpaceInline
     ;
 
-bold : '**' inline+ '**' ;
+bold
+    : '**' inline+ '**'
+    ;
 
-ESCAPED : '\\' . ;
-// 修改TEXT，让它不包含空格和制表符
-TEXT    : ~[*\\ \t\r\n]+ ;
-// 新增SPACE规则
-SPACE   : [ \t]+ ;
 
-NEWLINE : '\r'? '\n' ;
+// ===== Lexer Rules (词法分析器规则) =====
 
-// 注释掉原来的WS -> skip，因为我们现在想自己处理空格
-// WS : [ \t]+ -> skip ;
+HARD_BREAK : '\\\\' ;
+
+// 修正后的规则
+PARAGRAPH_END : ('\r'? '\n') ('\r'? '\n')+ ;
+
+// 注意：SOFT_BREAK 规则必须在 PARAGRAPH_END 之后
+SOFT_BREAK : '\r'? '\n' ;
+
+ESCAPED : '\\' ~[\r\n] ;
+
+TEXT : ~[*\\ \t\r\n]+ ; // 在中括号的排除列表里，加上空格和 \t
+
+SPACE : [ \t]+ ;
