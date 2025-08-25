@@ -13,7 +13,7 @@ import com.guaguaaaa.mymd.MyMDParser;
 public class Main {
     public static void main(String[] args) throws Exception {
         // 1. 准备输入
-        String input = "这是**一段**重要的文本。\n另一行**粗体**内容。";
+        String input = "这是**一段**重要 的文本。\n另一行**粗体**内容。";
 
         // 2. 创建词法分析器和语法分析器 (不变)
         MyMDLexer lexer = new MyMDLexer(CharStreams.fromString(input));

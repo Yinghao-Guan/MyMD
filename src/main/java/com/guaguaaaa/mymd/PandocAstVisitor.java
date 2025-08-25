@@ -52,9 +52,7 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
     @Override
     public PandocNode visitSpaceInline(MyMDParser.SpaceInlineContext ctx) {
         // 在Pandoc中，多个空格通常被表示为一个Space节点
-        // return new Space();  // <-- 你需要先创建Space.java
-        // 为了简单起见，我们暂时先把它也当作普通文本处理
-        return new Str(" ");
+        return new Space();
     }
 
     // --- 处理具体规则的方法 ---
