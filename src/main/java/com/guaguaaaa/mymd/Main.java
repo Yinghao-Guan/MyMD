@@ -20,7 +20,7 @@ public class Main {
                 "最后一个段落, **粗体\n跨行**也能正常工作。"; // 测试：粗体跨单换行 和 文档结尾
 
 
-        // 2. 创建词法分析器和语法分析器 (不变)
+        // 2. 创建词法分析器和语法分析器
         MyMDLexer lexer = new MyMDLexer(CharStreams.fromString(input));
         CommonTokenStream tokens = new CommonTokenStream(lexer);
         MyMDParser parser = new MyMDParser(tokens);
