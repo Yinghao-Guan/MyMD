@@ -12,11 +12,20 @@ document
 
 block
     : paragraph                 # ParagraphBlock
-    | BLOCK_MATH                # BlockMathBlock      // <-- ADDED: New block type for math
+    | BLOCK_MATH                # BlockMathBlock
+    | bulletList                # BulletListBlock
     ;
 
 paragraph
     : inline+ (PARAGRAPH_END | EOF)
+    ;
+
+bulletList
+    : listItem+
+    ;
+
+listItem
+    : DASH SPACE inline+ (SOFT_BREAK | PARAGRAPH_END)
     ;
 
 inline
@@ -50,9 +59,10 @@ INLINE_MATH : '$' ~[$]+ '$' ;
 
 BLOCK_MATH: '$$' ( . | '\r' | '\n' )*? '$$' ;
 
+DASH : '-' ;
+
 ESCAPED : '\\' ~[\r\n] ;
 
-// The TEXT rule no longer needs to exclude '$'
-TEXT : ~[*\\$ \t\r\n]+ ;
+TEXT : ~[*\\$ \t\r\n-]+ ;
 
 SPACE : [ \t]+ ;

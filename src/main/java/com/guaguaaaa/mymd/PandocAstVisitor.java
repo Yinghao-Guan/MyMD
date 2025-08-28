@@ -23,19 +23,39 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
 
     @Override
     public PandocNode visitBlockMathBlock(MyMDParser.BlockMathBlockContext ctx) {
-        // 1. Get the full token text (e.g., "$$\nE=mc^2\n$$")
         String fullText = ctx.BLOCK_MATH().getText();
-
-        // 2. Remove the '$$' delimiters and trim surrounding whitespace/newlines
         String mathText = fullText.substring(2, fullText.length() - 2).trim();
-
-        // 3. Create a MathNode with the DISPLAY_MATH type
         MathNode mathNode = new MathNode(MathNode.MathType.DISPLAY_MATH, mathText);
-
-        // 4. Per Pandoc AST conventions, a block equation is a Para block
-        //    containing a single Math (DisplayMath) inline element.
         return new Para(Collections.singletonList(mathNode));
     }
+
+    // --- 新增：处理整个列表块的方法 ---
+    @Override
+    public PandocNode visitBulletListBlock(MyMDParser.BulletListBlockContext ctx) {
+        return visit(ctx.bulletList());
+    }
+
+    // --- 修改：将 listItem 的处理逻辑直接整合到这里 ---
+    @Override
+    public PandocNode visitBulletList(MyMDParser.BulletListContext ctx) {
+        List<List<Block>> items = ctx.listItem().stream()
+                .map(listItemCtx -> { // 直接处理每个 listItem 上下文
+                    // 1. 获取一个列表项中的所有行内元素
+                    List<Inline> inlines = listItemCtx.inline().stream()
+                            .map(this::visit)
+                            .map(node -> (Inline) node)
+                            .collect(Collectors.toList());
+                    // 2. 将行内元素包装成一个段落 (Para)
+                    Para para = new Para(inlines);
+                    // 3. 每个列表项是一个 Block 列表，这里只包含一个 Para
+                    return Collections.singletonList((Block) para);
+                })
+                .collect(Collectors.toList());
+
+        return new BulletList(items);
+    }
+
+    // --- 已移除 visitListItem 方法 ---
 
     @Override
     public PandocNode visitParagraph(MyMDParser.ParagraphContext ctx) {
@@ -45,6 +65,8 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
                 .collect(Collectors.toList());
         return new Para(inlines);
     }
+
+    // --- 以下是所有处理 Inline 元素的方法，保持不变 ---
 
     @Override
     public PandocNode visitBoldInline(MyMDParser.BoldInlineContext ctx) {
@@ -60,7 +82,6 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
     public PandocNode visitInlineMathInline(MyMDParser.InlineMathInlineContext ctx) {
         String fullText = ctx.INLINE_MATH().getText();
         String mathText = fullText.substring(1, fullText.length() - 1);
-        // Use the updated constructor with the INLINE_MATH type
         return new MathNode(MathNode.MathType.INLINE_MATH, mathText);
     }
 
@@ -82,7 +103,6 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
 
     @Override
     public PandocNode visitSoftBreakInline(MyMDParser.SoftBreakInlineContext ctx) {
-        // 单个换行符被视为一个空格
         return new Space();
     }
 

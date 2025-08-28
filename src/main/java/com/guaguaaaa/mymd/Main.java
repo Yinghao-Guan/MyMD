@@ -11,11 +11,11 @@ public class Main {
     public static void main(String[] args) throws Exception {
         // 1. Update input to test the new block math feature
         String input =
-                "This is a paragraph with an inline equation $E=mc^2$.\n\n" +
-                        "$$\n" +
-                        "E = mc^2\n" +
-                        "$$\n\n" +
-                        "And this is a paragraph after the math block.";
+                "这是一个段落。\n\n" +
+                        "- 列表项一，*包含斜体*。\n" +
+                        "- 列表项二，**包含粗体**。\n" +
+                        "- 列表项三，有行内公式 $a^2 + b^2 = c^2$。\n\n" +
+                        "列表结束后是另一个段落。";
 
 
         // 2. The rest of the code remains the same
