@@ -12,6 +12,7 @@ document
 
 block
     : paragraph                 # ParagraphBlock
+    | BLOCK_MATH                # BlockMathBlock      // <-- ADDED: New block type for math
     ;
 
 paragraph
@@ -21,7 +22,7 @@ paragraph
 inline
     : bold                      # BoldInline
     | italic                    # ItalicInline
-    | INLINE_MATH               # InlineMathInline  // <-- CHANGED: Now a direct token
+    | INLINE_MATH               # InlineMathInline
     | HARD_BREAK                # HardBreakInline
     | SOFT_BREAK                # SoftBreakInline
     | ESCAPED                   # EscapedInline
@@ -45,9 +46,9 @@ PARAGRAPH_END : ('\r'? '\n') ('\r'? '\n')+ ;
 SOFT_BREAK : '\r'? '\n' ;
 HARD_BREAK : '\\\\' ;
 
-// NEW and IMPROVED rule for inline math
-// It matches a '$', followed by any sequence of characters that are NOT '$', then a final '$'.
 INLINE_MATH : '$' ~[$]+ '$' ;
+
+BLOCK_MATH: '$$' ( . | '\r' | '\n' )*? '$$' ;
 
 ESCAPED : '\\' ~[\r\n] ;
 

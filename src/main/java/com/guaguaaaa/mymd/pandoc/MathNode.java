@@ -2,12 +2,28 @@ package com.guaguaaaa.mymd.pandoc;
 
 import java.util.Arrays;
 
-// 行内公式节点
+// This class can represent both InlineMath and DisplayMath
 public class MathNode extends Inline {
-    public MathNode(String text) {
-        // Pandoc AST 中 Math 节点的 "c" 是一个包含两个元素的列表：
-        // 第一个是固定的元数据 ["t": "InlineMath"] (这里简化为字符串 "InlineMath")
-        // 第二个是公式的文本内容
-        super("Math", Arrays.asList("InlineMath", text));
+
+    // Use an enum for type safety to distinguish between math types
+    public enum MathType {
+        INLINE_MATH("InlineMath"),
+        DISPLAY_MATH("DisplayMath");
+
+        private final String pandocName;
+
+        MathType(String pandocName) {
+            this.pandocName = pandocName;
+        }
+
+        public String getPandocName() {
+            return pandocName;
+        }
+    }
+
+    // Updated constructor to accept a type
+    public MathNode(MathType type, String text) {
+        // The Pandoc AST structure is ["MathType", "equation text"]
+        super("Math", Arrays.asList(type.getPandocName(), text));
     }
 }

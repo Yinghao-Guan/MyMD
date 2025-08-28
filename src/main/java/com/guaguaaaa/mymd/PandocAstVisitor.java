@@ -1,6 +1,7 @@
 package com.guaguaaaa.mymd;
 
 import com.guaguaaaa.mymd.pandoc.*;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -18,6 +19,22 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
     @Override
     public PandocNode visitParagraphBlock(MyMDParser.ParagraphBlockContext ctx) {
         return visit(ctx.paragraph());
+    }
+
+    @Override
+    public PandocNode visitBlockMathBlock(MyMDParser.BlockMathBlockContext ctx) {
+        // 1. Get the full token text (e.g., "$$\nE=mc^2\n$$")
+        String fullText = ctx.BLOCK_MATH().getText();
+
+        // 2. Remove the '$$' delimiters and trim surrounding whitespace/newlines
+        String mathText = fullText.substring(2, fullText.length() - 2).trim();
+
+        // 3. Create a MathNode with the DISPLAY_MATH type
+        MathNode mathNode = new MathNode(MathNode.MathType.DISPLAY_MATH, mathText);
+
+        // 4. Per Pandoc AST conventions, a block equation is a Para block
+        //    containing a single Math (DisplayMath) inline element.
+        return new Para(Collections.singletonList(mathNode));
     }
 
     @Override
@@ -41,14 +58,10 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
 
     @Override
     public PandocNode visitInlineMathInline(MyMDParser.InlineMathInlineContext ctx) {
-        // 1. Get the complete token text (e.g., "$E=mc^2$")
         String fullText = ctx.INLINE_MATH().getText();
-
-        // 2. Remove the first and last characters ('$') to get the content
         String mathText = fullText.substring(1, fullText.length() - 1);
-
-        // 3. Create the MathNode
-        return new MathNode(mathText);
+        // Use the updated constructor with the INLINE_MATH type
+        return new MathNode(MathNode.MathType.INLINE_MATH, mathText);
     }
 
     @Override
