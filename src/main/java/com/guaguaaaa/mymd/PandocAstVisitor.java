@@ -1,9 +1,6 @@
 package com.guaguaaaa.mymd;
 
 import com.guaguaaaa.mymd.pandoc.*;
-import com.guaguaaaa.mymd.MyMDBaseVisitor;
-import com.guaguaaaa.mymd.MyMDParser;
-
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -19,7 +16,7 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
     }
 
     @Override
-    public PandocNode visitBlock(MyMDParser.BlockContext ctx) {
+    public PandocNode visitParagraphBlock(MyMDParser.ParagraphBlockContext ctx) {
         return visit(ctx.paragraph());
     }
 
@@ -31,8 +28,6 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
                 .collect(Collectors.toList());
         return new Para(inlines);
     }
-
-    // --- 使用标签生成的新方法 ---
 
     @Override
     public PandocNode visitBoldInline(MyMDParser.BoldInlineContext ctx) {
@@ -62,6 +57,7 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
 
     @Override
     public PandocNode visitSoftBreakInline(MyMDParser.SoftBreakInlineContext ctx) {
+        // 单个换行符被视为一个空格
         return new Space();
     }
 
@@ -69,8 +65,6 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
     public PandocNode visitHardBreakInline(MyMDParser.HardBreakInlineContext ctx) {
         return new LineBreak();
     }
-
-    // --- 处理具体规则的方法 ---
 
     @Override
     public PandocNode visitBold(MyMDParser.BoldContext ctx) {
