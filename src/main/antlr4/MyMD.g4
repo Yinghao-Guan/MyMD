@@ -21,6 +21,7 @@ paragraph
 inline
     : bold                      # BoldInline
     | italic                    # ItalicInline
+    | INLINE_MATH               # InlineMathInline  // <-- CHANGED: Now a direct token
     | HARD_BREAK                # HardBreakInline
     | SOFT_BREAK                # SoftBreakInline
     | ESCAPED                   # EscapedInline
@@ -36,19 +37,21 @@ italic
     : '*' inline+ '*'
     ;
 
+// REMOVED: The inlineMath parser rule is no longer needed here.
+
 // ===== Lexer Rules (词法分析器规则) =====
 
-// 两个或更多的换行符，代表一个段落的真正结束
 PARAGRAPH_END : ('\r'? '\n') ('\r'? '\n')+ ;
-
-// 单个换行符，它在段落内部
-// 注意：这个规则必须在 PARAGRAPH_END 之后，以遵循 ANTLR 的“最长匹配原则”
 SOFT_BREAK : '\r'? '\n' ;
-
 HARD_BREAK : '\\\\' ;
+
+// NEW and IMPROVED rule for inline math
+// It matches a '$', followed by any sequence of characters that are NOT '$', then a final '$'.
+INLINE_MATH : '$' ~[$]+ '$' ;
 
 ESCAPED : '\\' ~[\r\n] ;
 
-TEXT : ~[*\\ \t\r\n]+ ;
+// The TEXT rule no longer needs to exclude '$'
+TEXT : ~[*\\$ \t\r\n]+ ;
 
 SPACE : [ \t]+ ;

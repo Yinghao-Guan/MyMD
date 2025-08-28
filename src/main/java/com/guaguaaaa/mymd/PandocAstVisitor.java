@@ -40,6 +40,18 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
     }
 
     @Override
+    public PandocNode visitInlineMathInline(MyMDParser.InlineMathInlineContext ctx) {
+        // 1. Get the complete token text (e.g., "$E=mc^2$")
+        String fullText = ctx.INLINE_MATH().getText();
+
+        // 2. Remove the first and last characters ('$') to get the content
+        String mathText = fullText.substring(1, fullText.length() - 1);
+
+        // 3. Create the MathNode
+        return new MathNode(mathText);
+    }
+
+    @Override
     public PandocNode visitEscapedInline(MyMDParser.EscapedInlineContext ctx) {
         String text = ctx.ESCAPED().getText();
         return new Str(text.substring(1));

@@ -11,10 +11,8 @@ public class Main {
     public static void main(String[] args) throws Exception {
         // 1. 准备一个能体现所有逻辑的输入
         String input =
-                "这是第一个段落的第一行。\n" + // 这是一个 SOFT_BREAK，应该被转换成空格
-                        "这是第一个段落的第二行。\n\n" + // 这是一个 PARAGRAPH_END，应该结束第一个段落
-                        "现在是第二个段落，*包含斜体*。\n\n\n" + // 多个空行也算一个 PARAGRAPH_END
-                        "这是第三个段落，**包含粗体**。"; // 最后没有换行符，应该由 EOF 来结束段落
+                "这是一个包含行内公式的段落, 比如爱因斯坦的质能方程 $E=mc^2$。公式后面还有一些文字。\n\n" +
+                        "这是第二个段落，测试一下转义的美元符号 \\$ 和普通的星号 \\*。";
 
         // 2. 创建词法分析器和语法分析器
         MyMDLexer lexer = new MyMDLexer(CharStreams.fromString(input));
