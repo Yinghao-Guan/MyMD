@@ -16,46 +16,72 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
         return new PandocAst(blocks);
     }
 
+    // --- visitParagraphBlock 保持不变 ---
     @Override
     public PandocNode visitParagraphBlock(MyMDParser.ParagraphBlockContext ctx) {
         return visit(ctx.paragraph());
     }
 
+    // --- 方法名和上下文类型已根据新的 G4 标签更新 ---
     @Override
-    public PandocNode visitBlockMathBlock(MyMDParser.BlockMathBlockContext ctx) {
+    public PandocNode visitBlockMathRule(MyMDParser.BlockMathRuleContext ctx) {
+        // 访问子规则 blockMath
+        return visit(ctx.blockMath());
+    }
+
+    // --- 方法名和上下文类型已根据新的 G4 标签更新 ---
+    @Override
+    public PandocNode visitBulletListRule(MyMDParser.BulletListRuleContext ctx) {
+        // 访问子规则 bulletListBlock
+        return visit(ctx.bulletListBlock());
+    }
+
+    // --- 方法名和上下文类型已根据新的 G4 标签更新 ---
+    @Override
+    public PandocNode visitCodeBlockRule(MyMDParser.CodeBlockRuleContext ctx) {
+        // 访问子规则 codeBlock
+        return visit(ctx.codeBlock());
+    }
+
+
+    // --- 以下是处理具体块级元素逻辑的方法 ---
+
+    @Override
+    public PandocNode visitBlockMath(MyMDParser.BlockMathContext ctx) {
         String fullText = ctx.BLOCK_MATH().getText();
         String mathText = fullText.substring(2, fullText.length() - 2).trim();
         MathNode mathNode = new MathNode(MathNode.MathType.DISPLAY_MATH, mathText);
         return new Para(Collections.singletonList(mathNode));
     }
 
-    // --- 新增：处理整个列表块的方法 ---
+    @Override
+    public PandocNode visitCodeBlock(MyMDParser.CodeBlockContext ctx) {
+        String fullText = ctx.CODE_BLOCK().getText();
+        String codeText = fullText.substring(3, fullText.length() - 3).trim();
+        CodeNode codeNode = new CodeNode(CodeNode.CodeType.BLOCK, codeText);
+        return new Para(Collections.singletonList(codeNode));
+    }
+
     @Override
     public PandocNode visitBulletListBlock(MyMDParser.BulletListBlockContext ctx) {
         return visit(ctx.bulletList());
     }
 
-    // --- 修改：将 listItem 的处理逻辑直接整合到这里 ---
     @Override
     public PandocNode visitBulletList(MyMDParser.BulletListContext ctx) {
         List<List<Block>> items = ctx.listItem().stream()
-                .map(listItemCtx -> { // 直接处理每个 listItem 上下文
-                    // 1. 获取一个列表项中的所有行内元素
+                .map(listItemCtx -> {
                     List<Inline> inlines = listItemCtx.inline().stream()
                             .map(this::visit)
                             .map(node -> (Inline) node)
                             .collect(Collectors.toList());
-                    // 2. 将行内元素包装成一个段落 (Para)
                     Para para = new Para(inlines);
-                    // 3. 每个列表项是一个 Block 列表，这里只包含一个 Para
                     return Collections.singletonList((Block) para);
                 })
                 .collect(Collectors.toList());
 
         return new BulletList(items);
     }
-
-    // --- 已移除 visitListItem 方法 ---
 
     @Override
     public PandocNode visitParagraph(MyMDParser.ParagraphContext ctx) {
@@ -66,7 +92,7 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
         return new Para(inlines);
     }
 
-    // --- 以下是所有处理 Inline 元素的方法，保持不变 ---
+    // --- 以下所有处理 Inline 元素的方法保持不变 ---
 
     @Override
     public PandocNode visitBoldInline(MyMDParser.BoldInlineContext ctx) {
@@ -83,6 +109,13 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
         String fullText = ctx.INLINE_MATH().getText();
         String mathText = fullText.substring(1, fullText.length() - 1);
         return new MathNode(MathNode.MathType.INLINE_MATH, mathText);
+    }
+
+    @Override
+    public PandocNode visitInlineCodeInline(MyMDParser.InlineCodeInlineContext ctx) {
+        String fullText = ctx.INLINE_CODE().getText();
+        String codeText = fullText.substring(1, fullText.length() - 1);
+        return new CodeNode(CodeNode.CodeType.INLINE, codeText);
     }
 
     @Override
