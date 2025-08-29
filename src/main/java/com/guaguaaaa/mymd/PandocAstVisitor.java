@@ -1,6 +1,8 @@
 package com.guaguaaaa.mymd;
 
 import com.guaguaaaa.mymd.pandoc.*;
+import org.antlr.v4.runtime.tree.TerminalNode;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -16,35 +18,54 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
         return new PandocAst(blocks);
     }
 
-    // --- visitParagraphBlock 保持不变 ---
     @Override
     public PandocNode visitParagraphBlock(MyMDParser.ParagraphBlockContext ctx) {
         return visit(ctx.paragraph());
     }
 
-    // --- 方法名和上下文类型已根据新的 G4 标签更新 ---
     @Override
     public PandocNode visitBlockMathRule(MyMDParser.BlockMathRuleContext ctx) {
-        // 访问子规则 blockMath
         return visit(ctx.blockMath());
     }
 
-    // --- 方法名和上下文类型已根据新的 G4 标签更新 ---
     @Override
     public PandocNode visitBulletListRule(MyMDParser.BulletListRuleContext ctx) {
-        // 访问子规则 bulletListBlock
         return visit(ctx.bulletListBlock());
     }
 
-    // --- 方法名和上下文类型已根据新的 G4 标签更新 ---
     @Override
     public PandocNode visitCodeBlockRule(MyMDParser.CodeBlockRuleContext ctx) {
-        // 访问子规则 codeBlock
         return visit(ctx.codeBlock());
     }
 
+    // --- 新增：处理标题规则的入口方法 ---
+    @Override
+    public PandocNode visitHeaderRule(MyMDParser.HeaderRuleContext ctx) {
+        return visit(ctx.header());
+    }
 
-    // --- 以下是处理具体块级元素逻辑的方法 ---
+    // --- 新增：处理标题逻辑的核心方法 ---
+    @Override
+    public PandocNode visitHeader(MyMDParser.HeaderContext ctx) {
+        // 1. 确定标题级别
+        int level = 0;
+        if (ctx.H1() != null) level = 1;
+        else if (ctx.H2() != null) level = 2;
+        else if (ctx.H3() != null) level = 3;
+        else if (ctx.H4() != null) level = 4;
+        else if (ctx.H5() != null) level = 5;
+        else if (ctx.H6() != null) level = 6;
+
+        // 2. 提取标题内容 (所有的行内元素)
+        List<Inline> inlines = ctx.inline().stream()
+                .map(this::visit)
+                .map(node -> (Inline) node)
+                .collect(Collectors.toList());
+
+        // 3. 创建并返回 Header 节点
+        return new Header(level, inlines);
+    }
+
 
     @Override
     public PandocNode visitBlockMath(MyMDParser.BlockMathContext ctx) {

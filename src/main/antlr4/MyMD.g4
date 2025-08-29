@@ -15,13 +15,18 @@ block
     | blockMath                 # BlockMathRule
     | bulletListBlock           # BulletListRule
     | codeBlock                 # CodeBlockRule
+    | header                    # HeaderRule
+    ;
+
+// --- 新增：标题的解析器规则 ---
+header
+    : (H1 | H2 | H3 | H4 | H5 | H6) inline+ (PARAGRAPH_END | EOF)
     ;
 
 paragraph
     : inline+ (PARAGRAPH_END | EOF)
     ;
 
-// 新增：为块级元素创建独立的解析器规则，以便处理它们末尾的分隔符
 blockMath
     : BLOCK_MATH (PARAGRAPH_END | EOF)?
     ;
@@ -34,7 +39,6 @@ codeBlock
     : CODE_BLOCK (PARAGRAPH_END | EOF)?
     ;
 
-// --- 列表的定义保持不变 ---
 bulletList
     : listItem+
     ;
@@ -43,7 +47,6 @@ listItem
     : DASH SPACE inline+ (SOFT_BREAK | PARAGRAPH_END)
     ;
 
-// --- 行内元素的定义保持不变 ---
 inline
     : bold                      # BoldInline
     | italic                    # ItalicInline
@@ -64,7 +67,7 @@ italic
     : '*' inline+ '*'
     ;
 
-// ===== Lexer Rules (词法分析器规则) - 保持不变 =====
+// ===== Lexer Rules (词法分析器规则) =====
 
 PARAGRAPH_END : ('\r'? '\n') ('\r'? '\n')+ ;
 SOFT_BREAK : '\r'? '\n' ;
@@ -76,8 +79,17 @@ BLOCK_MATH: '$$' ( . | '\r' | '\n' )*? '$$' ;
 INLINE_CODE : '`' ~[`\r\n]+ '`' ;
 CODE_BLOCK : '```' ( . | '\r' | '\n' )*? '```' ;
 
+// --- 新增：标题的词法规则 ---
+H1 : '#' [ \t]+ ;
+H2 : '##' [ \t]+ ;
+H3 : '###' [ \t]+ ;
+H4 : '####' [ \t]+ ;
+H5 : '#####' [ \t]+ ;
+H6 : '######' [ \t]+ ;
+
 DASH : '-' ;
 ESCAPED : '\\' ~[\r\n] ;
 
-TEXT : ~[*\\$` \t\r\n-]+ ;
+// --- 修改 TEXT 规则，使其不匹配 # ---
+TEXT : ~[*\\$`# \t\r\n-]+ ;
 SPACE : [ \t]+ ;

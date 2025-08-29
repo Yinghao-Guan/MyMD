@@ -11,16 +11,14 @@ public class Main {
     public static void main(String[] args) throws Exception {
         // 1. Update input to test the new block math feature
         String input =
-                "这是一个包含 `inline code` 的段落。\n\n" +
-                        "下面是一个代码块：\n\n" +
-                        "```\n" +
-                        "public class HelloWorld {\n" +
-                        "    public static void main(String[] args) {\n" +
-                        "        System.out.println(\"Hello, World!\");\n" +
-                        "    }\n" +
-                        "}\n" +
-                        "```\n\n" +
-                        "代码块结束后是另一个段落。";
+                "# 这是 H1 标题\n\n" +
+                        "这是一个段落。\n\n" +
+                        "## 这是 H2 标题，*包含斜体*\n\n" +
+                        "### 这是 H3\n\n" +
+                        "#### H4\n\n" +
+                        "##### H5\n\n" +
+                        "###### H6\n\n" +
+                        "标题结束后是另一个段落。";
 
 
         // 2. The rest of the code remains the same
