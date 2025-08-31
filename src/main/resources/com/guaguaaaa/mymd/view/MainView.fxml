@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.SplitPane?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.web.WebView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.control.Button?>
+
+<VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.guaguaaaa.mymd.view.MainView">
+    <children>
+        <HBox alignment="CENTER_RIGHT" spacing="10" style="-fx-padding: 10;">
+            <Button text="Convert to HTML Preview" onAction="#handleConvert" />
+            <Button text="Save as LaTeX" onAction="#handleSaveAsLatex" />
+        </HBox>
+        <SplitPane VBox.vgrow="ALWAYS" dividerPositions="0.5">
+            <items>
+                <TextArea fx:id="inputTextArea" promptText="Enter your MyMD content here..." style="-fx-font-family: 'Consolas';"/>
+                <WebView fx:id="previewWebView" />
+            </items>
+        </SplitPane>
+    </children>
+</VBox>
