@@ -28,6 +28,19 @@ public class MainViewModel {
         return outputHtml;
     }
 
+    private String getPandocExecutable() {
+        String pandocHome = System.getenv("PANDOC_HOME");
+        if (pandocHome != null && !pandocHome.isEmpty()) {
+            // 确保路径末尾有文件分隔符
+            String separator = File.separator;
+            if (!pandocHome.endsWith(separator)) {
+                pandocHome += separator;
+            }
+            return pandocHome + "pandoc";
+        }
+        return "pandoc"; // 回退到默认行为
+    }
+
     // 将原有的 convert() 方法重命名为 convertToHtml()
     public void convertToHtml() throws IOException, InterruptedException {
         String mymdText = inputContent.get();
@@ -45,10 +58,11 @@ public class MainViewModel {
 
         // 2. Call Pandoc process to convert AST to HTML
         ProcessBuilder processBuilder = new ProcessBuilder(
-                "pandoc",
+                getPandocExecutable(),
                 "-f", "json",
                 "-t", "html"
         );
+
 
         Process process = processBuilder.start();
         try (OutputStreamWriter writer = new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8)) {
@@ -95,7 +109,7 @@ public class MainViewModel {
 
         // 2. Call Pandoc process to convert AST to LaTeX and save to file
         ProcessBuilder processBuilder = new ProcessBuilder(
-                "pandoc",
+                getPandocExecutable(),
                 "-f", "json",
                 "-t", "latex",
                 "-o", outputFile.getAbsolutePath()
