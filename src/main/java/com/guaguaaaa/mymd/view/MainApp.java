@@ -7,30 +7,40 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 
+/**
+ * Main entry point for the application
+ * This class sets up the JavaFX stage, loads the FXML view, and links it to the ViewModel.
+ */
 public class MainApp extends Application {
 
     @Override
     public void start(Stage primaryStage) throws Exception {
-        // 创建 ViewModel 实例
+        // Create the ViewModel instance
         MainViewModel viewModel = new MainViewModel();
 
-        // 创建 FXMLLoader
+        // Create the FXMLLoader
         FXMLLoader fxmlLoader = new FXMLLoader(getClass().getResource("MainView.fxml"));
 
-        // 加载 FXML。此时，FXMLLoader 会自动创建 MainView 实例并注入 @FXML 字段。
+        // Load the FXML. The FXMLLoader will automatically create the MainView instance and inject its @FXML fields.
         Parent root = fxmlLoader.load();
 
-        // 获取 FXMLLoader 创建的控制器实例
+        // Get the controller instance created by the FXMLLoader
         MainView controller = fxmlLoader.getController();
 
-        // 在控制器被加载并初始化后，再注入 ViewModel
+        // Inject the ViewModel into the controller after it has been loaded
         controller.setViewModel(viewModel);
 
-        // 设置场景和舞台
+        // Set up the scene and stage
         primaryStage.setTitle("MyMD Editor");
         primaryStage.setScene(new Scene(root, 1000, 700));
         primaryStage.show();
     }
+
+    /**
+     * The main method to launch the JavaFX application.
+     *
+     * @param args Command line arguments.
+     */
 
     public static void main(String[] args) {
         launch(args);

@@ -1,12 +1,21 @@
 package com.guaguaaaa.mymd;
 
-import com.guaguaaaa.mymd.pandoc.*; // <<< THE MISSING IMPORT IS NOW HERE!
+import com.guaguaaaa.mymd.pandoc.*;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * A visitor that traverses the ANTLR parse tree and constructs a Pandoc Abstract Syntax Tree (AST).
+ * This class maps the custom MyMD grammar rules to Pandoc's native JSON format.
+ */
 public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
 
+    /**
+     * Visits the document rule and creates the root Pandoc AST node.
+     * @param ctx The parse tree context for the document.
+     * @return A {@link PandocAst} node representing the entire document.
+     */
     @Override
     public PandocNode visitDocument(MyMDParser.DocumentContext ctx) {
         List<Block> blocks = ctx.block().stream()
@@ -16,31 +25,51 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
         return new PandocAst(blocks);
     }
 
+    /**
+     * Visits a paragraph block and delegates to the paragraph rule.
+     */
     @Override
     public PandocNode visitParagraphBlock(MyMDParser.ParagraphBlockContext ctx) {
         return visit(ctx.paragraph());
     }
 
+    /**
+     * Visits a block math rule and delegates to the block math rule.
+     */
     @Override
     public PandocNode visitBlockMathRule(MyMDParser.BlockMathRuleContext ctx) {
         return visit(ctx.blockMath());
     }
 
+    /**
+     * Visits a bullet list rule and delegates to the bullet list block rule.
+     */
     @Override
     public PandocNode visitBulletListRule(MyMDParser.BulletListRuleContext ctx) {
         return visit(ctx.bulletListBlock());
     }
 
+    /**
+     * Visits a code block rule and delegates to the code block rule.
+     */
     @Override
     public PandocNode visitCodeBlockRule(MyMDParser.CodeBlockRuleContext ctx) {
         return visit(ctx.codeBlock());
     }
 
+    /**
+     * Visits a header rule and delegates to the header rule.
+     */
     @Override
     public PandocNode visitHeaderRule(MyMDParser.HeaderRuleContext ctx) {
         return visit(ctx.header());
     }
 
+    /**
+     * Visits a header node and creates a Pandoc Header node with the correct level and content.
+     * @param ctx The parse tree context for the header.
+     * @return A {@link Header} node.
+     */
     @Override
     public PandocNode visitHeader(MyMDParser.HeaderContext ctx) {
         int level = 0;
@@ -59,6 +88,11 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
         return new Header(level, inlines);
     }
 
+    /**
+     * Visits a block math node and creates a Pandoc Para node containing a Math node.
+     * @param ctx The parse tree context for the block math.
+     * @return A {@link Para} node with the display math content.
+     */
     @Override
     public PandocNode visitBlockMath(MyMDParser.BlockMathContext ctx) {
         String fullText = ctx.BLOCK_MATH().getText();
@@ -67,6 +101,11 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
         return new Para(Collections.singletonList(mathNode));
     }
 
+    /**
+     * Visits a code block node and creates a Pandoc CodeBlock node.
+     * @param ctx The parse tree context for the code block.
+     * @return A {@link CodeBlock} node.
+     */
     @Override
     public PandocNode visitCodeBlock(MyMDParser.CodeBlockContext ctx) {
         String fullText = ctx.CODE_BLOCK().getText();
@@ -74,11 +113,19 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
         return new CodeBlock(codeText);
     }
 
+    /**
+     * Visits a bullet list block and delegates to the bullet list rule.
+     */
     @Override
     public PandocNode visitBulletListBlock(MyMDParser.BulletListBlockContext ctx) {
         return visit(ctx.bulletList());
     }
 
+    /**
+     * Visits a bullet list node and creates a Pandoc BulletList node.
+     * @param ctx The parse tree context for the bullet list.
+     * @return A {@link BulletList} node.
+     */
     @Override
     public PandocNode visitBulletList(MyMDParser.BulletListContext ctx) {
         List<List<Block>> items = ctx.listItem().stream()
@@ -95,6 +142,11 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
         return new BulletList(items);
     }
 
+    /**
+     * Visits a paragraph node and creates a Pandoc Para node.
+     * @param ctx The parse tree context for the paragraph.
+     * @return A {@link Para} node.
+     */
     @Override
     public PandocNode visitParagraph(MyMDParser.ParagraphContext ctx) {
         List<Inline> inlines = ctx.inline().stream()
@@ -106,6 +158,11 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
 
     // --- Inline Elements ---
 
+    /**
+     * Visits an inline code element and creates a Pandoc Code node.
+     * @param ctx The parse tree context for the inline code.
+     * @return A {@link Code} node.
+     */
     @Override
     public PandocNode visitInlineCodeInline(MyMDParser.InlineCodeInlineContext ctx) {
         String fullText = ctx.INLINE_CODE().getText();
@@ -113,21 +170,63 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
         return new Code(codeText);
     }
 
+    /**
+     * Visits a bold inline element and delegates to the bold rule.
+     */
     @Override
     public PandocNode visitBoldInline(MyMDParser.BoldInlineContext ctx) { return visit(ctx.bold()); }
+
+    /**
+     * Visits an italic inline element and delegates to the italic rule.
+     */
     @Override
     public PandocNode visitItalicInline(MyMDParser.ItalicInlineContext ctx) { return visit(ctx.italic()); }
+
+    /**
+     * Visits an escaped inline element and creates a Pandoc Str node, removing the escape character.
+     * @param ctx The parse tree context for the escaped character.
+     * @return A {@link Str} node.
+     */
     @Override
     public PandocNode visitEscapedInline(MyMDParser.EscapedInlineContext ctx) { return new Str(ctx.ESCAPED().getText().substring(1)); }
+
+    /**
+     * Visits a text inline element and creates a Pandoc Str node.
+     * @param ctx The parse tree context for the text.
+     * @return A {@link Str} node.
+     */
     @Override
     public PandocNode visitTextInline(MyMDParser.TextInlineContext ctx) { return new Str(ctx.TEXT().getText()); }
+
+    /**
+     * Visits a space inline element and creates a Pandoc Space node.
+     * @param ctx The parse tree context for the space.
+     * @return A {@link Space} node.
+     */
     @Override
     public PandocNode visitSpaceInline(MyMDParser.SpaceInlineContext ctx) { return new Space(); }
+
+    /**
+     * Visits a soft break inline element and creates a Pandoc Space node.
+     * @param ctx The parse tree context for the soft break.
+     * @return A {@link Space} node.
+     */
     @Override
     public PandocNode visitSoftBreakInline(MyMDParser.SoftBreakInlineContext ctx) { return new Space(); }
+
+    /**
+     * Visits a hard break inline element and creates a Pandoc LineBreak node.
+     * @param ctx The parse tree context for the hard break.
+     * @return A {@link LineBreak} node.
+     */
     @Override
     public PandocNode visitHardBreakInline(MyMDParser.HardBreakInlineContext ctx) { return new LineBreak(); }
 
+    /**
+     * Visits an inline math element and creates a Pandoc Math node.
+     * @param ctx The parse tree context for the inline math.
+     * @return A {@link MathNode} node.
+     */
     @Override
     public PandocNode visitInlineMathInline(MyMDParser.InlineMathInlineContext ctx) {
         String fullText = ctx.INLINE_MATH().getText();
@@ -135,13 +234,22 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
         return new MathNode(MathNode.MathType.INLINE_MATH, mathText);
     }
 
-
+    /**
+     * Visits a bold node and creates a Pandoc Strong node.
+     * @param ctx The parse tree context for the bold text.
+     * @return A {@link Strong} node.
+     */
     @Override
     public PandocNode visitBold(MyMDParser.BoldContext ctx) {
         List<Inline> inlines = ctx.inline().stream().map(this::visit).map(node -> (Inline) node).collect(Collectors.toList());
         return new Strong(inlines);
     }
 
+    /**
+     * Visits an italic node and creates a Pandoc Emph node.
+     * @param ctx The parse tree context for the italic text.
+     * @return An {@link Emph} node.
+     */
     @Override
     public PandocNode visitItalic(MyMDParser.ItalicContext ctx) {
         List<Inline> inlines = ctx.inline().stream().map(this::visit).map(node -> (Inline) node).collect(Collectors.toList());

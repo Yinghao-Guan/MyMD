@@ -15,37 +15,66 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 
+/**
+ * The ViewModel for the main application, handling the core logic of text conversion.
+ * It manages the input and output content properties and orchestrates the conversion
+ * process using ANTLR and an external Pandoc executable.
+ */
+
 public class MainViewModel {
 
     private final StringProperty inputContent = new SimpleStringProperty();
     private final StringProperty outputHtml = new SimpleStringProperty();
 
+    /**
+     * Provides access to the input text property for data binding.
+     * @return The StringProperty for the input text.
+     */
     public StringProperty inputContentProperty() {
         return inputContent;
     }
 
+    /**
+     * Provides access to the output HTML property for data binding.
+     * @return The StringProperty for the output HTML.
+     */
     public StringProperty outputHtmlProperty() {
         return outputHtml;
     }
 
+    /**
+     * Determines the path to the Pandoc executable.
+     * It first checks the PANDOC_HOME environment variable; if not found, it defaults to "pandoc".
+     * @return The path to the Pandoc executable.
+     */
+
     private String getPandocExecutable() {
         String pandocHome = System.getenv("PANDOC_HOME");
         if (pandocHome != null && !pandocHome.isEmpty()) {
-            // 确保路径末尾有文件分隔符
+            // Ensure the path ends with a file separator
             String separator = File.separator;
             if (!pandocHome.endsWith(separator)) {
                 pandocHome += separator;
             }
             return pandocHome + "pandoc";
         }
-        return "pandoc"; // 回退到默认行为
+        return "pandoc";
     }
 
-    // 将原有的 convert() 方法重命名为 convertToHtml()
+    /**
+     * Converts the MyMD content from the input property to HTML.
+     * This method implements a two-step conversion pipeline:
+     * 1. The MyMD text is parsed into an ANTLR parse tree.
+     * 2. A custom visitor transforms the parse tree into a Pandoc JSON AST.
+     * 3. The JSON is piped to the Pandoc command-line tool, which performs the final HTML conversion.
+     *
+     * @throws IOException          if an I/O error occurs.
+     * @throws InterruptedException if the process is interrupted.
+     */
     public void convertToHtml() throws IOException, InterruptedException {
         String mymdText = inputContent.get();
 
-        // 1. Parse MyMD content and generate Pandoc AST (JSON)
+        // Parse MyMD content and generate Pandoc AST (JSON)
         CharStream input = CharStreams.fromString(mymdText);
         MyMDLexer lexer = new MyMDLexer(input);
         CommonTokenStream tokens = new CommonTokenStream(lexer);
@@ -56,7 +85,7 @@ public class MainViewModel {
         Gson gson = new GsonBuilder().create();
         String jsonOutput = gson.toJson(ast);
 
-        // 2. Call Pandoc process to convert AST to HTML
+        // Call Pandoc process to convert AST to HTML
         ProcessBuilder processBuilder = new ProcessBuilder(
                 getPandocExecutable(),
                 "-f", "json",
@@ -92,11 +121,17 @@ public class MainViewModel {
         }
     }
 
-    // 新增的方法来处理保存为 LaTeX
+    /**
+     * Converts the MyMD content to LaTeX and saves it to a specified file.
+     * This method follows the same two-step conversion pipeline as {@link #convertToHtml()}.
+     *
+     * @param outputFile The file to which the LaTeX content will be saved.
+     * @throws IOException          if an I/O error occurs.
+     * @throws InterruptedException if the process is interrupted.
+     */
     public void saveAsLatex(File outputFile) throws IOException, InterruptedException {
         String mymdText = inputContent.get();
 
-        // 1. Parse MyMD content and generate Pandoc AST (JSON)
         CharStream input = CharStreams.fromString(mymdText);
         MyMDLexer lexer = new MyMDLexer(input);
         CommonTokenStream tokens = new CommonTokenStream(lexer);
@@ -107,7 +142,6 @@ public class MainViewModel {
         Gson gson = new GsonBuilder().create();
         String jsonOutput = gson.toJson(ast);
 
-        // 2. Call Pandoc process to convert AST to LaTeX and save to file
         ProcessBuilder processBuilder = new ProcessBuilder(
                 getPandocExecutable(),
                 "-f", "json",
@@ -122,7 +156,6 @@ public class MainViewModel {
 
         int exitCode = process.waitFor();
         if (exitCode != 0) {
-            // 如果 Pandoc 失败，将错误信息显示在 UI 的 HTML 预览区域
             try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
                 String errorLine;
                 StringBuilder errorText = new StringBuilder();

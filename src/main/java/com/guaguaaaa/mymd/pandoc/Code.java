@@ -3,9 +3,14 @@ package com.guaguaaaa.mymd.pandoc;
 import java.util.Arrays;
 import java.util.Collections;
 
-// 行内代码节点 (继承自 Inline)
+// Represents an inline code node in the Pandoc AST.
+// The structure of a Code node in Pandoc is typically `[["", [], []], "the code"]`.
 public class Code extends Inline {
-    // Pandoc AST 中 Code 节点的结构为: [["", [], []], "the code"]
+    /**
+     * Constructs a new Code node.
+     *
+     * @param content The text content of the inline code.
+     */
     public Code(String content) {
         super("Code", Arrays.asList(
                 Arrays.asList("", Collections.emptyList(), Collections.emptyList()),

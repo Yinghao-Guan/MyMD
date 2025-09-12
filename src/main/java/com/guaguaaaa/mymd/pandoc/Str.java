@@ -1,7 +1,12 @@
 package com.guaguaaaa.mymd.pandoc;
 
-// 普通文本节点
+// Represents a plain text string node in the Pandoc AST.
 public class Str extends Inline {
+    /**
+     * Constructs a new Str node.
+     *
+     * @param text The plain text content.
+     */
     public Str(String text) {
         super("Str", text);
     }

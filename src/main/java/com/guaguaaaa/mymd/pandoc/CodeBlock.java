@@ -3,9 +3,14 @@ package com.guaguaaaa.mymd.pandoc;
 import java.util.Arrays;
 import java.util.Collections;
 
-// 代码块节点 (继承自 Block)
+// Represents a code block node in the Pandoc AST.
+// The structure of a CodeBlock node in Pandoc is typically `[["", [], []], "the code"]`.
 public class CodeBlock extends Block {
-    // Pandoc AST 中 CodeBlock 节点的结构为: [["", [], []], "the code"]
+    /**
+     * Constructs a new CodeBlock node.
+     *
+     * @param content The text content of the code block.
+     */
     public CodeBlock(String content) {
         super("CodeBlock", Arrays.asList(
                 Arrays.asList("", Collections.emptyList(), Collections.emptyList()),

@@ -11,6 +11,10 @@ import javafx.stage.FileChooser;
 import java.io.File;
 import java.io.IOException;
 
+/**
+ * Controller class for the main application view.
+ * This class handles user interactions and binds the view components to the ViewModel.
+ */
 public class MainView {
 
     @FXML
@@ -20,6 +24,11 @@ public class MainView {
 
     private MainViewModel viewModel;
 
+    /**
+     * Sets the ViewModel and establishes data bindings between the view and the ViewModel.
+     * @param viewModel The ViewModel instance to be used by this controller.
+     */
+
     public void setViewModel(MainViewModel viewModel) {
         this.viewModel = viewModel;
         inputTextArea.textProperty().bindBidirectional(this.viewModel.inputContentProperty());
@@ -28,18 +37,24 @@ public class MainView {
         });
     }
 
+    /**
+     * Handles the "Convert to HTML Preview" button action.
+     * Triggers the conversion of MyMD text to HTML and updates the preview.
+     */
     @FXML
     private void handleConvert() {
         try {
             viewModel.convertToHtml();
         } catch (IOException | InterruptedException e) {
             showErrorDialog("Conversion Failed", "An error occurred while converting to HTML.", e.toString());
-            // 可以在控制台打印完整的堆栈信息用于调试
             e.printStackTrace();
         }
     }
 
-    // 新增的方法来处理保存为 LaTeX
+    /**
+     * Handles the "Save as LaTeX" button action.
+     * Opens a file chooser dialog and saves the converted LaTeX content to the selected file.
+     */
     @FXML
     private void handleSaveAsLatex() {
         FileChooser fileChooser = new FileChooser();
@@ -60,10 +75,10 @@ public class MainView {
     }
 
     /**
-     * 显示一个标准的错误信息弹窗。
-     * @param title 对话框的标题
-     * @param headerText 错误的主要信息
-     * @param contentText 错误的详细内容
+     * Displays a standard error dialog with a detailed message.
+     * @param title The title of the dialog window.
+     * @param headerText The main error message.
+     * @param contentText The detailed content of the error.
      */
     private void showErrorDialog(String title, String headerText, String contentText) {
         Alert alert = new Alert(Alert.AlertType.ERROR);

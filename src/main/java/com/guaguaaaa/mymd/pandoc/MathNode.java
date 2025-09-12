@@ -2,9 +2,10 @@ package com.guaguaaaa.mymd.pandoc;
 
 import java.util.Arrays;
 
+// Represents a math node (inline or display) in the Pandoc AST.
 public class MathNode extends Inline {
 
-    // 辅助内部类，用于生成 {"t": "TypeName"} 格式的 JSON 对象
+    // Helper inner class for generating the `{"t": "TypeName"}` JSON object format.
     private static class MathTypeObject {
         private final String t;
 
@@ -13,6 +14,7 @@ public class MathNode extends Inline {
         }
     }
 
+    // Defines the types of math nodes supported.
     public enum MathType {
         INLINE_MATH("InlineMath"),
         DISPLAY_MATH("DisplayMath");
@@ -28,7 +30,14 @@ public class MathNode extends Inline {
         }
     }
 
-    // 构造函数已更新
+    /**
+     * Constructs a new MathNode.
+     * <p>
+     * The structure in Pandoc AST is: `[{"t": "MathType"}, "equation text"]`.
+     *
+     * @param type The type of the math node (inline or display).
+     * @param text The mathematical equation as a string.
+     */
     public MathNode(MathType type, String text) {
         // Pandoc AST 的新结构是: [ {"t": "MathType"}, "equation text" ]
         // 我们不再直接传递字符串，而是传递 MathTypeObject 的实例
