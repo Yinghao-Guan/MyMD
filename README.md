@@ -39,3 +39,16 @@ The core of MyMD is its two-stage conversion pipeline:
 ```Bash
 mvn clean javafx:run
 ```
+
+## Testing
+
+Test project utilises JUnit 5 to ensure the quality and correctness of its core logic. Unit tests are focused on the `PandocAstVisitor` class, which handles the critical transformation from the ANTLR parse tree to the Pandoc AST.
+
+The tests verify that various MyMD syntax elements are correctly and reliably parsed into their corresponding AST structures.
+
+### Running the Tests
+
+To run the suite of unit tests, navigate to the project's root directory and execute the following Maven command:
+```Bash
+mvn clean test
+```
