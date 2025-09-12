@@ -52,3 +52,21 @@ To run the suite of unit tests, navigate to the project's root directory and exe
 ```Bash
 mvn clean test
 ```
+
+## Future Development
+
+Whilst MyMD currently provides robust core functionality, there is a clear roadmap for future enhancements to develop it into a more full-featured and polished application.
+
+1. **User Experience and Functionality**
+    - **File Menu**: Implement a standard top-level menu bar (`File -> Open, Save, Save As...`) to provide a more conventional user experience for file operations.
+    - **Expanded Export Options**: Add a user-facing control to select from a wider range of export formats supported by Pandoc, such as `.docx`, PDF, and EPUB.
+    - **Editor Syntax Highlighting**: Introduce real-time syntax highlighting for the MyMD markup in the input pane to improve readability and the writing experience.
+    - **Theme Customisation**: Provide options for light and dark user interface themes.
+2. **MyMD Syntax Expansion**
+    - **Table Support**: Enhance the ANLTR grammar to parse Markdown-style tables.
+    - **Image and Hyperlink Support**: Introduce syntax for embedding images and creating hyperlinks within documents.
+    - **Automatic Table of Contents**: Implement a feature to automatically generate a table of contents based on the document's header structure.
+3. **Architectural Improvements**
+    - **Asynchronous Processing**: Move the Pandoc conversion process to a background thread to ensure the user interface remains responsive, especially when processing large documents.
+    - **Incremental Parsing**: Investigate and implement an incremental parsing strategy, where only the modified parts of the document are re-analysed, to improve performance.
+    - **Pluginised Architecture**: Re-architect the application to support plugins, allowing for community contributions of new syntax rules or export targets.
