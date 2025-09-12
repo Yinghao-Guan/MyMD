@@ -23,4 +23,8 @@ public class PandocAst implements PandocNode {
     public PandocAst(List<Block> blocks) {
         this.blocks = blocks;
     }
+
+    public List<Block> getBlocks() {
+        return blocks;
+    }
 }
