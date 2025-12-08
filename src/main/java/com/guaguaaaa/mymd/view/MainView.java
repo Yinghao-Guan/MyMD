@@ -21,6 +21,8 @@ public class MainView {
     private TextArea inputTextArea;
     @FXML
     private WebView previewWebView;
+    @FXML
+    private javafx.scene.control.TextField templateField;
 
     private MainViewModel viewModel;
 
@@ -32,6 +34,7 @@ public class MainView {
     public void setViewModel(MainViewModel viewModel) {
         this.viewModel = viewModel;
         inputTextArea.textProperty().bindBidirectional(this.viewModel.inputContentProperty());
+        templateField.textProperty().bindBidirectional(this.viewModel.citationTemplateProperty());
         this.viewModel.outputHtmlProperty().addListener((obs, oldVal, newVal) -> {
             previewWebView.getEngine().loadContent(newVal);
         });

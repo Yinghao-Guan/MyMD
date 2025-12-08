@@ -14,6 +14,14 @@
             <Button text="Convert to HTML Preview" onAction="#handleConvert" />
             <Button text="Save as LaTeX" onAction="#handleSaveAsLatex" />
         </HBox>
+
+        <HBox alignment="CENTER_LEFT" spacing="10" style="-fx-padding: 0 10 10 10;">
+            <javafx.scene.control.Label text="Citation Template:" style="-fx-font-weight: bold;"/>
+            <javafx.scene.control.TextField fx:id="templateField" HBox.hgrow="ALWAYS"
+                                            promptText="Enter citation template (e.g. {author}. {title}. {year})"
+                                            text="{author} ({year}). {title}. *{journal}*, {volume}({issue}), {page}. https://doi.org/{doi}"/>
+        </HBox>
+
         <SplitPane VBox.vgrow="ALWAYS" dividerPositions="0.5">
             <items>
                 <TextArea fx:id="inputTextArea" promptText="Enter your MyMD content here..." style="-fx-font-family: 'Consolas';"/>

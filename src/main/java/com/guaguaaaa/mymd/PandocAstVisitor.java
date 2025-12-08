@@ -234,6 +234,14 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
         return new MathNode(MathNode.MathType.INLINE_MATH, mathText);
     }
 
+    @Override
+    public PandocNode visitCitationInline(MyMDParser.CitationInlineContext ctx) {
+        String fullText = ctx.citation().getText();
+        // 去掉开头的 "[@" 和结尾的 "]"，提取 ID
+        String citeId = fullText.substring(2, fullText.length() - 1);
+        return new Cite(citeId);
+    }
+
     /**
      * Visits a bold node and creates a Pandoc Strong node.
      * @param ctx The parse tree context for the bold text.
@@ -254,5 +262,21 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
     public PandocNode visitItalic(MyMDParser.ItalicContext ctx) {
         List<Inline> inlines = ctx.inline().stream().map(this::visit).map(node -> (Inline) node).collect(Collectors.toList());
         return new Emph(inlines);
+    }
+
+    /**
+     * 处理普通的左方括号
+     */
+    @Override
+    public PandocNode visitLBracketInline(MyMDParser.LBracketInlineContext ctx) {
+        return new Str("[");
+    }
+
+    /**
+     * 处理普通的右方括号
+     */
+    @Override
+    public PandocNode visitRBracketInline(MyMDParser.RBracketInlineContext ctx) {
+        return new Str("]");
     }
 }

@@ -58,6 +58,9 @@ inline
     | italic                    # ItalicInline
     | INLINE_MATH               # InlineMathInline
     | INLINE_CODE               # InlineCodeInline
+    | citation                  # CitationInline
+    | lbracket                  # LBracketInline
+    | rbracket                  # RBracketInline
     | HARD_BREAK                # HardBreakInline
     | SOFT_BREAK                # SoftBreakInline
     | ESCAPED                   # EscapedInline
@@ -74,6 +77,13 @@ bold
 italic
     : '*' inline+ '*'
     ;
+
+citation
+    : CITATION
+    ;
+
+lbracket : LBRACKET ;
+rbracket : RBRACKET ;
 
 // ======================= Lexer Rules =======================
 
@@ -96,6 +106,12 @@ INLINE_CODE : '`' ~[`\r\n]+ '`' ;
 // A code block enclosed by three backticks.
 CODE_BLOCK : '```' ( . | '\r' | '\n' )*? '```' ;
 
+// 引用 Token：匹配 [@...] 格式
+CITATION : '[' '@' [a-zA-Z0-9_:-]+ ']' ;
+
+LBRACKET : '[' ;
+RBRACKET : ']' ;
+
 // Header tokens based on the number of hash symbols.
 H1 : '#' [ \t]+ ;
 H2 : '##' [ \t]+ ;
@@ -111,7 +127,7 @@ DASH : '-' ;
 ESCAPED : '\\' ~[\r\n] ;
 
 // A general text token. Modified to not match special characters.
-TEXT : ~[*\\$`# \t\r\n-]+ ;
+TEXT : ~[*\\$`#[\] \t\r\n-]+ ;
 
 // A space token.
 SPACE : [ \t]+ ;
