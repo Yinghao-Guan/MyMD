@@ -4,6 +4,8 @@ import com.guaguaaaa.mymd.pandoc.*;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.ArrayList;
+
 
 /**
  * A visitor that traverses the ANTLR parse tree and constructs a Pandoc Abstract Syntax Tree (AST).
@@ -64,6 +66,27 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
     public PandocNode visitHeaderRule(MyMDParser.HeaderRuleContext ctx) {
         return visit(ctx.header());
     }
+
+    // --- 新增 Block 处理 ---
+
+    @Override
+    public PandocNode visitHorizontalRuleBlock(MyMDParser.HorizontalRuleBlockContext ctx) {
+        return new HorizontalRule();
+    }
+
+    @Override
+    public PandocNode visitBlockQuoteBlock(MyMDParser.BlockQuoteBlockContext ctx) {
+        // 引用块里包含 inline 元素，但 Pandoc 的 BlockQuote 需要包含 Block。
+        // 所以我们把 inline 包装成一个 Para，再放进 BlockQuote。
+        List<Inline> inlines = ctx.blockquote().inline().stream()
+                .map(this::visit)
+                .map(node -> (Inline) node)
+                .collect(Collectors.toList());
+
+        Para para = new Para(inlines);
+        return new BlockQuote(Collections.singletonList(para));
+    }
+
 
     /**
      * Visits a header node and creates a Pandoc Header node with the correct level and content.
@@ -157,6 +180,69 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
     }
 
     // --- Inline Elements ---
+    @Override
+    public PandocNode visitImageInline(MyMDParser.ImageInlineContext ctx) {
+        // 使用 ctx.image().url().getText() 获取完整 URL
+        MyMDParser.ImageContext imgCtx = ctx.image();
+        String url = imgCtx.url().getText();
+
+        List<Inline> altText = imgCtx.inline().stream()
+                .map(this::visit)
+                .map(node -> (Inline) node)
+                .collect(Collectors.toList());
+
+        return new Image(altText, url);
+    }
+
+    @Override
+    public PandocNode visitLinkInline(MyMDParser.LinkInlineContext ctx) {
+        // 使用 ctx.link().url().getText()
+        MyMDParser.LinkContext linkCtx = ctx.link();
+        String url = linkCtx.url().getText();
+
+        List<Inline> content = linkCtx.inline().stream()
+                .map(this::visit)
+                .map(node -> (Inline) node)
+                .collect(Collectors.toList());
+
+        return new Link(content, url);
+    }
+
+    @Override
+    public PandocNode visitBangInline(MyMDParser.BangInlineContext ctx) {
+        return new Str("!");
+    }
+
+    @Override
+    public PandocNode visitGtInline(MyMDParser.GtInlineContext ctx) {
+        return new Str(">");
+    }
+
+    @Override
+    public PandocNode visitLParenInline(MyMDParser.LParenInlineContext ctx) {
+        return new Str("(");
+    }
+
+    @Override
+    public PandocNode visitRParenInline(MyMDParser.RParenInlineContext ctx) {
+        return new Str(")");
+    }
+
+    @Override
+    public PandocNode visitUrlTextInline(MyMDParser.UrlTextInlineContext ctx) {
+        // 这就是那个关键修复：把被误认为 URL 的单词当做普通文本返回
+        return new Str(ctx.getText());
+    }
+
+    @Override
+    public PandocNode visitDashInline(MyMDParser.DashInlineContext ctx) {
+        return new Str("-");
+    }
+
+    @Override
+    public PandocNode visitStarInline(MyMDParser.StarInlineContext ctx) {
+        return new Str("*");
+    }
 
     /**
      * Visits an inline code element and creates a Pandoc Code node.

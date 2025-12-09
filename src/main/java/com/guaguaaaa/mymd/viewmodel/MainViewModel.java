@@ -120,13 +120,22 @@ public class MainViewModel {
         }
 
         int exitCode = process.waitFor();
-
         if (exitCode == 0) {
-            // 如果成功，但 stderr 有内容（通常是警告），也打印出来看看
-            if (errorOutput.length() > 0) {
-                System.out.println("Pandoc Warnings:\n" + errorOutput.toString());
-            }
-            outputHtml.set(htmlOutput.toString());
+            // 注入 CSS 样式
+            String css = """
+                <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6; padding: 20px; max-width: 800px; margin: 0 auto; }
+                    blockquote { border-left: 4px solid #dfe2e5; color: #6a737d; margin: 0; padding-left: 1em; }
+                    hr { height: 0.25em; padding: 0; margin: 24px 0; background-color: #e1e4e8; border: 0; }
+                    img { max-width: 100%; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-radius: 4px; }
+                    a { color: #0366d6; text-decoration: none; }
+                    a:hover { text-decoration: underline; }
+                    /* 修复引用点击跳转不可见的问题 */
+                    .citation { color: #0366d6; }
+                </style>
+                """;
+
+            outputHtml.set(css + htmlOutput.toString());
         } else {
             outputHtml.set("Error: Pandoc failed (Exit Code " + exitCode + ")\n" + errorOutput.toString());
         }

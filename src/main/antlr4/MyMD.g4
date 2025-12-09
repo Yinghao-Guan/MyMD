@@ -11,24 +11,33 @@ document
     ;
 
 block
-    : paragraph                 # ParagraphBlock
-    | blockMath                 # BlockMathRule
-    | bulletListBlock           # BulletListRule
-    | codeBlock                 # CodeBlockRule
-    | header                    # HeaderRule
+    : horizontalRule          # HorizontalRuleBlock
+    | blockquote              # BlockQuoteBlock
+    | bulletListBlock         # BulletListRule
+    | codeBlock               # CodeBlockRule
+    | header                  # HeaderRule
+    | blockMath               # BlockMathRule
+    | paragraph               # ParagraphBlock
     ;
 
-// A header block with a level from 1 to 6, followed by inline content.
+// 分割线：三个或更多的 - 或 *
+horizontalRule
+    : (DASH DASH DASH+ | STAR STAR STAR+) (SOFT_BREAK | PARAGRAPH_END | EOF)
+    ;
+
+// 引用块：以 > 开头
+blockquote
+    : GT SPACE? inline+ (PARAGRAPH_END | EOF)
+    ;
+
 header
     : (H1 | H2 | H3 | H4 | H5 | H6) inline+ (PARAGRAPH_END | EOF)
     ;
 
-// A paragraph is a sequence of inline elements.
 paragraph
     : inline+ (PARAGRAPH_END | EOF)
     ;
 
-// A display math block enclosed by $$.
 blockMath
     : BLOCK_MATH (PARAGRAPH_END | EOF)?
     ;
@@ -37,82 +46,77 @@ bulletListBlock
     : bulletList (PARAGRAPH_END | EOF)?
     ;
 
-// A code block enclosed by ```.
 codeBlock
     : CODE_BLOCK (PARAGRAPH_END | EOF)?
     ;
 
-// A bullet list is one or more list items.
 bulletList
     : listItem+
     ;
 
-// A list item starts with a dash and a space, followed by inline content.
 listItem
     : DASH SPACE inline+ (SOFT_BREAK | PARAGRAPH_END)
     ;
 
 // Inline elements.
 inline
-    : bold                      # BoldInline
-    | italic                    # ItalicInline
-    | INLINE_MATH               # InlineMathInline
-    | INLINE_CODE               # InlineCodeInline
-    | citation                  # CitationInline
-    | lbracket                  # LBracketInline
-    | rbracket                  # RBracketInline
-    | HARD_BREAK                # HardBreakInline
-    | SOFT_BREAK                # SoftBreakInline
-    | ESCAPED                   # EscapedInline
-    | TEXT                      # TextInline
-    | SPACE                     # SpaceInline
+    : image                   # ImageInline
+    | link                    # LinkInline
+    | bold                    # BoldInline
+    | italic                  # ItalicInline
+    | INLINE_MATH             # InlineMathInline
+    | INLINE_CODE             # InlineCodeInline
+    | citation                # CitationInline
+    | lbracket                # LBracketInline
+    | rbracket                # RBracketInline
+    | bang                    # BangInline      // !
+    | gt                      # GtInline        // >
+    | lparen                  # LParenInline    // (
+    | rparen                  # RParenInline    // )
+    | urlText                 # UrlTextInline
+    | dash                    # DashInline
+    | star                    # StarInline
+    | HARD_BREAK              # HardBreakInline
+    | SOFT_BREAK              # SoftBreakInline
+    | ESCAPED                 # EscapedInline
+    | TEXT                    # TextInline
+    | SPACE                   # SpaceInline
     ;
 
-// Bold text enclosed by double asterisks.
-bold
-    : '**' inline+ '**'
-    ;
-
-// Italic text enclosed by single asterisks.
-italic
-    : '*' inline+ '*'
-    ;
-
-citation
-    : CITATION
-    ;
-
+citation : CITATION ;
 lbracket : LBRACKET ;
 rbracket : RBRACKET ;
+bold     : '**' inline+ '**' ;
+italic   : '*' inline+ '*' ;
+
+bang     : BANG ;
+gt       : GT ;
+lparen   : LPAREN ;
+rparen   : RPAREN ;
+urlText  : URL_TEXT ;
+dash     : DASH ;
+star     : STAR ;
+
+image : BANG LBRACKET inline* RBRACKET LPAREN url RPAREN ;
+link  : LBRACKET inline+ RBRACKET LPAREN url RPAREN ;
+
+url : (URL_TEXT | DASH | STAR | TEXT)+ ;
 
 // ======================= Lexer Rules =======================
 
-// Marks the end of a paragraph (two or more newlines).
+HARD_BREAK
+    : '  ' ('\r'? '\n')
+    | '\\'
+    ;
 PARAGRAPH_END : ('\r'? '\n') ('\r'? '\n')+ ;
-
-// A soft break is a single newline.
 SOFT_BREAK : '\r'? '\n' ;
 
-// A hard break is a backslash.
-HARD_BREAK : '\\\\' ;
-
-// Inline math enclosed by a single dollar sign.
 INLINE_MATH : '$' ~[$]+ '$' ;
-// A block math element enclosed by double dollar signs.
 BLOCK_MATH: '$$' ( . | '\r' | '\n' )*? '$$' ;
-
-// Inline code enclosed by a single backtick.
 INLINE_CODE : '`' ~[`\r\n]+ '`' ;
-// A code block enclosed by three backticks.
 CODE_BLOCK : '```' ( . | '\r' | '\n' )*? '```' ;
-
-// 引用 Token：匹配 [@...] 格式
 CITATION : '[' '@' [a-zA-Z0-9_:-]+ ']' ;
 
-LBRACKET : '[' ;
-RBRACKET : ']' ;
-
-// Header tokens based on the number of hash symbols.
 H1 : '#' [ \t]+ ;
 H2 : '##' [ \t]+ ;
 H3 : '###' [ \t]+ ;
@@ -120,14 +124,21 @@ H4 : '####' [ \t]+ ;
 H5 : '#####' [ \t]+ ;
 H6 : '######' [ \t]+ ;
 
-// A dash, used for list items.
 DASH : '-' ;
+STAR : '*' ;      // 显式定义 STAR
+BANG : '!' ;      // 图片用
+GT   : '>' ;      // 引用块用
+LBRACKET : '[' ;
+RBRACKET : ']' ;
+LPAREN   : '(' ;  // 链接用
+RPAREN   : ')' ;  // 链接用
 
-// An escaped character (e.g., `\*`).
 ESCAPED : '\\' ~[\r\n] ;
 
-// A general text token. Modified to not match special characters.
-TEXT : ~[*\\$`#[\] \t\r\n-]+ ;
+// URL 识别：允许字母数字和常见URL符号
+URL_TEXT : [a-zA-Z0-9:/.?#&=_%+]+ ;
 
-// A space token.
+// 文本规则
+TEXT : ~[*\\$`#[\]!>() \t\r\n-]+ ;
+
 SPACE : [ \t]+ ;
