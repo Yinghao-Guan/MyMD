@@ -47,3 +47,10 @@ build/
 
 # 忽略 Windows 缩略图缓存
 Thumbs.db
+
+# 忽略本地测试文档目录
+/sandbox/
+/test_docs/
+
+# 忽略所有生成的 CSL 样式文件（因为这是动态生成的）
+*.csl
