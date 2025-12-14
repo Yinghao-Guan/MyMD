@@ -103,4 +103,78 @@ public class MainView {
 
         alert.showAndWait();
     }
+
+    /**
+     * 处理 "Open" 菜单动作
+     */
+    @FXML
+    private void handleOpen() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Open File");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Markdown Files", "*.md", "*.mymd", "*.txt"));
+
+        // 尝试定位到 sandbox 目录，方便测试
+        File initialDir = new File("sandbox");
+        if (initialDir.exists()) {
+            fileChooser.setInitialDirectory(initialDir);
+        }
+
+        File file = fileChooser.showOpenDialog(inputTextArea.getScene().getWindow());
+        if (file != null) {
+            try {
+                viewModel.loadFile(file);
+            } catch (IOException e) {
+                showErrorDialog("Open Failed", "Could not load file.", e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 处理 "Save" 菜单动作
+     */
+    @FXML
+    private void handleSave() {
+        File currentFile = viewModel.getCurrentFile();
+        if (currentFile != null) {
+            // 如果已经有文件关联，直接保存
+            try {
+                viewModel.saveFile(currentFile);
+            } catch (IOException e) {
+                showErrorDialog("Save Failed", "Could not save file.", e.getMessage());
+            }
+        } else {
+            // 否则转到 "Save As"
+            handleSaveAs();
+        }
+    }
+
+    /**
+     * 处理 "Save As" 菜单动作
+     */
+    @FXML
+    private void handleSaveAs() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Save As");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Markdown Files", "*.md", "*.mymd"));
+
+        File initialDir = new File("sandbox");
+        if (initialDir.exists()) fileChooser.setInitialDirectory(initialDir);
+
+        File file = fileChooser.showSaveDialog(inputTextArea.getScene().getWindow());
+        if (file != null) {
+            try {
+                viewModel.saveFile(file);
+            } catch (IOException e) {
+                showErrorDialog("Save Failed", "Could not save file.", e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 处理 "Exit" 菜单动作
+     */
+    @FXML
+    private void handleExit() {
+        javafx.application.Platform.exit();
+    }
 }

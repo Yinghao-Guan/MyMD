@@ -41,6 +41,30 @@ public class MainViewModel {
         return "pandoc";
     }
 
+    private File currentFile;
+
+    // 获取当前文件对象（View层可能需要用它来判断是调用 Save 还是 SaveAs）
+    public File getCurrentFile() {
+        return currentFile;
+    }
+
+    /**
+     * 从文件加载内容到输入框
+     */
+    public void loadFile(File file) throws IOException {
+        String content = Files.readString(file.toPath(), StandardCharsets.UTF_8);
+        inputContent.set(content);
+        this.currentFile = file;
+    }
+
+    /**
+     * 将输入框内容保存到文件
+     */
+    public void saveFile(File file) throws IOException {
+        Files.writeString(file.toPath(), inputContent.get(), StandardCharsets.UTF_8);
+        this.currentFile = file;
+    }
+
     /**
      * 核心修改：动态生成 CSL 并调用 Pandoc 处理引用
      */

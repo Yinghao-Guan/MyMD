@@ -10,6 +10,20 @@
 <VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="com.guaguaaaa.mymd.view.MainView">
     <children>
+        <javafx.scene.control.MenuBar>
+            <menus>
+                <javafx.scene.control.Menu text="File">
+                    <items>
+                        <javafx.scene.control.MenuItem text="Open..." onAction="#handleOpen"/>
+                        <javafx.scene.control.MenuItem text="Save" onAction="#handleSave"/>
+                        <javafx.scene.control.MenuItem text="Save As..." onAction="#handleSaveAs"/>
+                        <javafx.scene.control.SeparatorMenuItem />
+                        <javafx.scene.control.MenuItem text="Exit" onAction="#handleExit"/>
+                    </items>
+                </javafx.scene.control.Menu>
+            </menus>
+        </javafx.scene.control.MenuBar>
+
         <HBox alignment="CENTER_RIGHT" spacing="10" style="-fx-padding: 10;">
             <Button text="Convert to HTML Preview" onAction="#handleConvert" />
             <Button text="Save as LaTeX" onAction="#handleSaveAsLatex" />
@@ -18,7 +32,7 @@
         <HBox alignment="CENTER_LEFT" spacing="10" style="-fx-padding: 0 10 10 10;">
             <javafx.scene.control.Label text="Citation Template:" style="-fx-font-weight: bold;"/>
             <javafx.scene.control.TextField fx:id="templateField" HBox.hgrow="ALWAYS"
-                                            promptText="Enter citation template (e.g. {author}. {title}. {year})"
+                                            promptText="Enter citation template"
                                             text="{author} ({year}). {title}. *{journal}*, {volume}({issue}), {page}. https://doi.org/{doi}"/>
         </HBox>
 
