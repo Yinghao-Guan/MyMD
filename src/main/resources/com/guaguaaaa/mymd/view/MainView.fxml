@@ -42,5 +42,11 @@
                 <WebView fx:id="previewWebView" />
             </items>
         </SplitPane>
+
+        <HBox spacing="10" style="-fx-padding: 5; -fx-background-color: #f0f0f0; -fx-border-color: #cccccc; -fx-border-width: 1 0 0 0;">
+            <javafx.scene.control.Label text="Status:"/>
+            <javafx.scene.control.Label fx:id="statusLabel" text="Ready" style="-fx-text-fill: #333333;"/>
+            <javafx.scene.control.ProgressBar fx:id="progressBar" progress="0.0" visible="false" prefWidth="100"/>
+        </HBox>
     </children>
 </VBox>

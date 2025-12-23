@@ -2,13 +2,17 @@ package com.guaguaaaa.mymd.viewmodel;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.guaguaaaa.mymd.CslGenerator; // 引入刚刚写的生成器
+import com.guaguaaaa.mymd.CslGenerator;
 import com.guaguaaaa.mymd.MyMDLexer;
 import com.guaguaaaa.mymd.MyMDParser;
 import com.guaguaaaa.mymd.PandocAstVisitor;
 import com.guaguaaaa.mymd.pandoc.PandocNode;
+
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
+
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
@@ -18,16 +22,22 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainViewModel {
 
     private final StringProperty inputContent = new SimpleStringProperty();
     private final StringProperty outputHtml = new SimpleStringProperty();
     private final StringProperty citationTemplate = new SimpleStringProperty();
+    private final StringProperty statusMessage = new SimpleStringProperty("Ready");
+    private final BooleanProperty isCompiling = new SimpleBooleanProperty(false);
 
     public StringProperty inputContentProperty() { return inputContent; }
     public StringProperty outputHtmlProperty() { return outputHtml; }
     public StringProperty citationTemplateProperty() { return citationTemplate; }
+    public StringProperty statusMessageProperty() { return statusMessage; }
+    public BooleanProperty isCompilingProperty() { return isCompiling; }
 
     private String getPandocExecutable() {
         String pandocHome = System.getenv("PANDOC_HOME");
@@ -61,20 +71,149 @@ public class MainViewModel {
      * 将输入框内容保存到文件
      */
     public void saveFile(File file) throws IOException {
+        // 先保存源文件 (Markdown)
         Files.writeString(file.toPath(), inputContent.get(), StandardCharsets.UTF_8);
         this.currentFile = file;
+
+        // 触发后台 PDF 编译
+        compilePdfInBackground(file);
     }
 
     /**
-     * 核心修改：动态生成 CSL 并调用 Pandoc 处理引用
+     * 后台 PDF 编译任务
      */
+    private void compilePdfInBackground(File sourceFile) {
+        // 如果已经在编译，就不要重复触发（或者你可以设计成排队，这里简化处理）
+        if (isCompiling.get()) return;
+
+        isCompiling.set(true);
+        statusMessage.set("Compiling PDF...");
+
+        // 获取当前的 AST JSON 字符串 (在 UI 线程快速完成)
+        String mymdText = inputContent.get();
+        // 注意：这里简单起见，我们在 UI 线程做 AST 解析（因为非常快）。
+        // 如果文档极大，也可以移到新线程里。
+        String jsonOutput;
+        try {
+            CharStream input = CharStreams.fromString(mymdText);
+            MyMDLexer lexer = new MyMDLexer(input);
+            CommonTokenStream tokens = new CommonTokenStream(lexer);
+            MyMDParser parser = new MyMDParser(tokens);
+            ParseTree tree = parser.document();
+            PandocAstVisitor visitor = new PandocAstVisitor();
+            PandocNode ast = visitor.visit(tree);
+            Gson gson = new GsonBuilder().create();
+            jsonOutput = gson.toJson(ast);
+        } catch (Exception e) {
+            statusMessage.set("Error: AST Parsing failed");
+            isCompiling.set(false);
+            return;
+        }
+
+        // 启动新线程运行 Pandoc (耗时操作)
+        new Thread(() -> {
+            try {
+                // 1. 准备输出文件名 (test.md -> test.pdf)
+                String sourcePath = sourceFile.getAbsolutePath();
+                String pdfPath = sourcePath.substring(0, sourcePath.lastIndexOf(".")) + ".pdf";
+
+                // 2. 准备资源文件 (Bib & CSL)
+                // 这里我们复用当前目录下的配置。
+                File bibFile = getAssociatedBibFile();
+                boolean useBib = bibFile.exists();
+                File cslFile = new File("custom_style.csl");
+
+                // 确保 CSL 存在 (如果在 load 文件后还没运行过 convertToHtml，可能不存在)
+                if (!cslFile.exists()) {
+                    String userTemplate = citationTemplate.get();
+                    if (userTemplate == null || userTemplate.isBlank()) userTemplate = "{author} ({year}). {title}.";
+                    String cslXml = CslGenerator.generateCslXml(userTemplate);
+                    Files.writeString(cslFile.toPath(), cslXml, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+                }
+
+                // 3. 构建 Pandoc 命令
+                List<String> command = new ArrayList<>();
+                command.add(getPandocExecutable());
+                command.add("-f"); command.add("json");
+                command.add("-t"); command.add("pdf");
+                command.add("-o"); command.add(pdfPath);
+                command.add("--pdf-engine=xelatex");
+                command.add("-V"); command.add("mainfont=Hei");
+
+                if (useBib) {
+                    command.add("--citeproc");
+                    command.add("--bibliography"); command.add(bibFile.getAbsolutePath());
+                    command.add("--csl"); command.add(cslFile.getAbsolutePath());
+                    command.add("--metadata=link-bibliography=false");
+                }
+
+                ProcessBuilder processBuilder = new ProcessBuilder(command);
+
+                Process process = processBuilder.start();
+                try (OutputStreamWriter writer = new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8)) {
+                    writer.write(jsonOutput);
+                }
+
+                // 读取错误流 (防止缓冲区满导致死锁)
+                StringBuilder errorOutput = new StringBuilder();
+                try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+                    String line;
+                    while ((line = errorReader.readLine()) != null) {
+                        errorOutput.append(line).append("\n");
+                    }
+                }
+
+                int exitCode = process.waitFor();
+
+                // 4. 更新 UI (必须回到 JavaFX 线程)
+                javafx.application.Platform.runLater(() -> {
+                    isCompiling.set(false);
+                    if (exitCode == 0) {
+                        statusMessage.set("PDF Saved: " + new File(pdfPath).getName());
+                    } else {
+                        statusMessage.set("PDF Error (Code " + exitCode + ")");
+                        System.err.println("Pandoc Error:\n" + errorOutput);
+                    }
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                javafx.application.Platform.runLater(() -> {
+                    isCompiling.set(false);
+                    statusMessage.set("Error: " + e.getMessage());
+                });
+            }
+        }).start();
+    }
+
     /**
-     * 核心修改：使用绝对路径，并打印 stderr 以便调试
+     * 根据当前 Markdown 文件，推算同名的 .bib 文件路径
+     * 例如：/path/to/paper.md -> /path/to/paper.bib
+     */
+    private File getAssociatedBibFile() {
+        if (this.currentFile == null) {
+            // 如果还没保存过文件，暂时回退到默认的 test.bib (或者返回 null)
+            return new File("test.bib");
+        }
+
+        String mdPath = this.currentFile.getAbsolutePath();
+        String bibPath;
+        if (mdPath.lastIndexOf(".") > 0) {
+            bibPath = mdPath.substring(0, mdPath.lastIndexOf(".")) + ".bib";
+        } else {
+            bibPath = mdPath + ".bib";
+        }
+
+        return new File(bibPath);
+    }
+
+    /**
+     * 动态生成 CSL 并调用 Pandoc 处理引用
      */
     public void convertToHtml() throws IOException, InterruptedException {
         String mymdText = inputContent.get();
 
-        // 1. 生成 AST (保持不变)
+        // 生成 AST
         CharStream input = CharStreams.fromString(mymdText);
         MyMDLexer lexer = new MyMDLexer(input);
         CommonTokenStream tokens = new CommonTokenStream(lexer);
@@ -90,8 +229,10 @@ public class MainViewModel {
                 (jsonOutput.length() > 500 ? jsonOutput.substring(0, 500) + "..." : jsonOutput));
 
         // 2. 准备文件 (使用绝对路径！)
-        File bibFile = new File("test.bib");
+        File bibFile = getAssociatedBibFile();
         File cslFile = new File("custom_style.csl");
+
+        boolean useBib = bibFile.exists();
 
         // 检查文件是否存在
         if (!bibFile.exists()) {
@@ -108,17 +249,22 @@ public class MainViewModel {
         String cslXmlContent = CslGenerator.generateCslXml(userCitationTemplate);
         Files.writeString(cslFile.toPath(), cslXmlContent, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
-        // 3. 调用 Pandoc
-        ProcessBuilder processBuilder = new ProcessBuilder(
-                getPandocExecutable(),
-                "-f", "json",
-                "-t", "html",
-                "--citeproc",
-                "--bibliography", bibFile.getAbsolutePath(),
-                "--csl", cslFile.getAbsolutePath(),
-                "--metadata=link-citations=true",
-                "--metadata=link-bibliography=false"
-        );
+        // Pandoc
+        // 构建 ProcessBuilder
+        List<String> command = new ArrayList<>();
+        command.add(getPandocExecutable());
+        command.add("-f"); command.add("json");
+        command.add("-t"); command.add("html");
+
+        if (useBib) {
+            command.add("--citeproc");
+            command.add("--bibliography"); command.add(bibFile.getAbsolutePath());
+            command.add("--csl"); command.add(cslFile.getAbsolutePath());
+            command.add("--metadata=link-bibliography=false");
+        }
+        command.add("--metadata=link-citations=true");
+
+        ProcessBuilder processBuilder = new ProcessBuilder(command);
 
         Process process = processBuilder.start();
         try (OutputStreamWriter writer = new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8)) {
@@ -154,7 +300,6 @@ public class MainViewModel {
                     img { max-width: 100%; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-radius: 4px; }
                     a { color: #0366d6; text-decoration: none; }
                     a:hover { text-decoration: underline; }
-                    /* 修复引用点击跳转不可见的问题 */
                     .citation { color: #0366d6; }
                 </style>
                 """;

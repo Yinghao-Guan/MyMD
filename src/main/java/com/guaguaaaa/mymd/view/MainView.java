@@ -24,6 +24,9 @@ public class MainView {
     @FXML
     private javafx.scene.control.TextField templateField;
 
+    @FXML private javafx.scene.control.Label statusLabel;
+    @FXML private javafx.scene.control.ProgressBar progressBar;
+
     private MainViewModel viewModel;
 
     /**
@@ -35,6 +38,14 @@ public class MainView {
         this.viewModel = viewModel;
         inputTextArea.textProperty().bindBidirectional(this.viewModel.inputContentProperty());
         templateField.textProperty().bindBidirectional(this.viewModel.citationTemplateProperty());
+        statusLabel.textProperty().bind(this.viewModel.statusMessageProperty());
+        // 当正在编译时，显示进度条（设为不确定进度模式）
+        progressBar.visibleProperty().bind(this.viewModel.isCompilingProperty());
+        progressBar.progressProperty().bind(
+                javafx.beans.binding.Bindings.when(this.viewModel.isCompilingProperty())
+                        .then(-1.0) // 负数表示 Indeterminate (左右来回跑)
+                        .otherwise(0.0)
+        );
         this.viewModel.outputHtmlProperty().addListener((obs, oldVal, newVal) -> {
             previewWebView.getEngine().loadContent(newVal);
         });
