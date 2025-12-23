@@ -25,7 +25,7 @@
         </javafx.scene.control.MenuBar>
 
         <HBox alignment="CENTER_RIGHT" spacing="10" style="-fx-padding: 10;">
-            <Button text="Convert to HTML Preview" onAction="#handleConvert" />
+<!--            <Button text="Convert to HTML Preview" onAction="#handleConvert" />-->
             <Button text="Save as LaTeX" onAction="#handleSaveAsLatex" />
         </HBox>
 

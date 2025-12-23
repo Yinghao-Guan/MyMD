@@ -8,6 +8,9 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.web.WebView;
 import javafx.stage.FileChooser;
+import javafx.animation.PauseTransition;
+import javafx.util.Duration;
+
 import java.io.File;
 import java.io.IOException;
 
@@ -49,21 +52,45 @@ public class MainView {
         this.viewModel.outputHtmlProperty().addListener((obs, oldVal, newVal) -> {
             previewWebView.getEngine().loadContent(newVal);
         });
+
+        // 实时预览逻辑 (Debounce)
+        // 1. 创建一个暂停转换器，设置为 500 毫秒
+        PauseTransition debounceTimer = new PauseTransition(Duration.millis(500));
+
+        // 2. 定义计时器结束时要执行的动作：调用转换
+        debounceTimer.setOnFinished(event -> {
+            try {
+                // 调用 ViewModel 的转换方法
+                // 注意：因为这是在后台跑 ProcessBuilder，可能会稍微有点闪烁，
+                // 但对于 M4 芯片来说应该很快。
+                this.viewModel.convertToHtml();
+            } catch (Exception e) {
+                e.printStackTrace(); // 预览出错暂时只打印日志，不弹窗打扰用户
+            }
+        });
+
+        // 监听输入框的文本变化
+        inputTextArea.textProperty().addListener((obs, oldVal, newVal) -> {
+            // 每次文本变化时，先从头开始计时
+            debounceTimer.playFromStart();
+        });
     }
 
     /**
      * Handles the "Convert to HTML Preview" button action.
      * Triggers the conversion of MyMD text to HTML and updates the preview.
+     *
+     * Could be removed
      */
-    @FXML
-    private void handleConvert() {
-        try {
-            viewModel.convertToHtml();
-        } catch (IOException | InterruptedException e) {
-            showErrorDialog("Conversion Failed", "An error occurred while converting to HTML.", e.toString());
-            e.printStackTrace();
-        }
-    }
+//    @FXML
+//    private void handleConvert() {
+//        try {
+//            viewModel.convertToHtml();
+//        } catch (IOException | InterruptedException e) {
+//            showErrorDialog("Conversion Failed", "An error occurred while converting to HTML.", e.toString());
+//            e.printStackTrace();
+//        }
+//    }
 
     /**
      * Handles the "Save as LaTeX" button action.
