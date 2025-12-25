@@ -22,7 +22,7 @@ public class MainApp extends Application {
         // Create the FXMLLoader
         FXMLLoader fxmlLoader = new FXMLLoader(getClass().getResource("view/MainView.fxml"));
 
-        // Load the FXML. The FXMLLoader will automatically create the MainView instance and inject its @FXML fields.
+        // Load the FXML
         Parent root = fxmlLoader.load();
 
         // Get the controller instance created by the FXMLLoader
@@ -34,6 +34,13 @@ public class MainApp extends Application {
         // Set up the scene and stage
         primaryStage.setTitle("MyMD Editor");
         primaryStage.setScene(new Scene(root, 1000, 700));
+
+        primaryStage.setOnCloseRequest(event -> {
+            controller.shutdown(); // 关闭线程池
+            javafx.application.Platform.exit(); // 退出 JavaFX
+            System.exit(0); // 强力终止 JVM (防止有漏网的非守护线程)
+        });
+
         primaryStage.show();
     }
 

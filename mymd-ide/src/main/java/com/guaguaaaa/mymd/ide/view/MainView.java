@@ -124,6 +124,29 @@ public class MainView {
         this.viewModel.outputHtmlProperty().addListener((obs, oldVal, newVal) -> {
             previewWebView.getEngine().loadContent(newVal);
         });
+
+        // 同步滚动逻辑 (Editor -> Preview)
+        codeArea.estimatedScrollYProperty().addListener((obs, oldVal, newVal) -> {
+            // 获取编辑器总高度估算值
+            double totalHeight = codeArea.getTotalHeightEstimate();
+            // 获取编辑器视口高度
+            double viewportHeight = codeArea.getHeight();
+
+            // 防止除以零或由极小高度导致的错误
+            if (totalHeight <= viewportHeight) {
+                return;
+            }
+
+            // 计算当前滚动百分比
+            double scrollY = newVal.doubleValue();
+            double percentage = scrollY / (totalHeight - viewportHeight);
+
+            // 限制在 0.0 到 1.0 之间
+            percentage = Math.max(0.0, Math.min(1.0, percentage));
+
+            // 同步给 WebView
+            syncPreviewScroll(percentage);
+        });
     }
 
     private void computeHighlightingAsync(String text) {
@@ -256,11 +279,43 @@ public class MainView {
     }
 
     /**
+     * 同步滚动预览视图
+     * @param percentage 滚动百分比 (0.0 ~ 1.0)
+     */
+    private void syncPreviewScroll(double percentage) {
+        if (previewWebView == null || previewWebView.getEngine() == null) {
+            return;
+        }
+
+        // 使用 JavaScript 控制 WebView 滚动
+        // document.body.scrollHeight - window.innerHeight 计算可滚动的最大距离
+        String script = String.format(
+                "window.scrollTo(0, (document.body.scrollHeight - window.innerHeight) * %f);",
+                percentage
+        );
+
+        try {
+            previewWebView.getEngine().executeScript(script);
+        } catch (Exception e) {
+            // 页面可能还没加载完，忽略脚本错误
+        }
+    }
+
+    /**
+     * 清理资源，关闭后台线程
+     */
+    public void shutdown() {
+        if (executor != null) {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
      * 处理 "Exit" 菜单动作
      */
     @FXML
     private void handleExit() {
-        executor.shutdown();
+        shutdown();
         javafx.application.Platform.exit();
     }
 }

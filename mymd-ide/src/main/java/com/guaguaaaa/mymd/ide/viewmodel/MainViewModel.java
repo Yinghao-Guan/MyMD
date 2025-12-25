@@ -99,7 +99,7 @@ public class MainViewModel {
         jsonOutput = result.pandocJson;
 
         // 启动新线程运行 Pandoc
-        new Thread(() -> {
+        Thread t = new Thread(() -> {
             try {
                 // 准备输出文件名 (test.md -> test.pdf)
                 String sourcePath = sourceFile.getAbsolutePath();
@@ -170,7 +170,10 @@ public class MainViewModel {
                     statusMessage.set("Error: " + e.getMessage());
                 });
             }
-        }).start();
+        });
+
+        t.setDaemon(true);
+        t.start();
     }
 
     /**
