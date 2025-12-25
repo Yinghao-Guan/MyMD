@@ -1,9 +1,5 @@
 grammar MyMD;
 
-//@header {
-//package com.guaguaaaa.mymd.core.parser;
-//}
-
 // ======================= Parser Rules =======================
 
 document
@@ -35,7 +31,18 @@ header
     ;
 
 paragraph
-    : inline+ (PARAGRAPH_END | EOF)
+    : inline+ (
+          PARAGRAPH_END
+        | EOF
+        | { _input.LA(1) == BLOCK_MATH
+        || _input.LA(1) == CODE_BLOCK
+        || _input.LA(1) == H1
+        || _input.LA(1) == H2
+        || _input.LA(1) == H3
+        || _input.LA(1) == H4
+        || _input.LA(1) == H5
+        || _input.LA(1) == H6}?
+      )
     ;
 
 blockMath
