@@ -89,3 +89,15 @@
     -fx-fill: #005cc5;
     -fx-font-weight: bold;
 }
+
+/* 错误标记：使用 RichTextFX 专用的下划线样式 */
+.error-marker {
+    /* 调试用：使用显眼的背景色，确保能看见 */
+    /*-rtfx-background-color: #ffcccc;*/
+
+    /* 同时保留下划线配置 */
+    -rtfx-underline: true;
+    -rtfx-underline-color: red;
+    -rtfx-underline-dash-array: 3 3;
+    -rtfx-underline-width: 2.0;
+}

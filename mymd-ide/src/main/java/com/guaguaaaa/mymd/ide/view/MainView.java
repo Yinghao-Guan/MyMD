@@ -1,5 +1,6 @@
 package com.guaguaaaa.mymd.ide.view;
 
+import com.guaguaaaa.mymd.core.api.Diagnostic;
 import com.guaguaaaa.mymd.ide.viewmodel.MainViewModel;
 import com.guaguaaaa.mymd.ide.util.SyntaxHighlighter;
 
@@ -16,7 +17,9 @@ import javafx.scene.layout.StackPane;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -52,6 +55,8 @@ public class MainView {
     private MainViewModel viewModel;
 
     private ExecutorService executor = Executors.newSingleThreadExecutor();
+
+    private List<Diagnostic> currentDiagnostics = new ArrayList<>();
 
     /**
      * Sets the ViewModel and establishes data bindings between the view and the ViewModel.
@@ -100,14 +105,21 @@ public class MainView {
 
         // 监听编辑器输入 -> 更新 ViewModel 并触发预览 + 高亮
         codeArea.textProperty().addListener((obs, oldText, newText) -> {
-            // 1. 更新 ViewModel
+            // 更新 ViewModel
             this.viewModel.inputContentProperty().set(newText);
 
-            // 2. 重置预览倒计时
+            // 重置预览倒计时
             debounceTimer.playFromStart();
 
-            // 3. [新增] 触发语法高亮 (异步执行)
+            // 触发语法高亮 (异步执行)
             computeHighlightingAsync(newText);
+        });
+
+        viewModel.getDiagnostics().addListener((javafx.collections.ListChangeListener.Change<? extends Diagnostic> c) -> {
+            // 更新本地缓存
+            this.currentDiagnostics = new ArrayList<>(viewModel.getDiagnostics());
+            // 触发重绘 (使用当前文本)
+            computeHighlightingAsync(codeArea.getText());
         });
 
         // 其他 UI 绑定
@@ -150,17 +162,32 @@ public class MainView {
     }
 
     private void computeHighlightingAsync(String text) {
+        List<Diagnostic> diagnosticsSnapshot = new ArrayList<>(this.currentDiagnostics);
+
         Task<StyleSpans<Collection<String>>> task = new Task<>() {
             @Override
             protected StyleSpans<Collection<String>> call() {
-                // 在后台线程调用 Lexer
-                return SyntaxHighlighter.computeHighlighting(text);
+                // 计算语法高亮 (Base Layer)
+                StyleSpans<Collection<String>> syntaxSpans = SyntaxHighlighter.computeHighlighting(text);
+
+                // 计算错误高亮 (Error Layer)
+                StyleSpans<Collection<String>> errorSpans = SyntaxHighlighter.computeErrorHighlighting(text, diagnosticsSnapshot);
+
+                // 合并图层 (Overlay)
+                // 逻辑：将两个集合合并 (A + B)
+                return syntaxSpans.overlay(errorSpans, (syntaxStyle, errorStyle) -> {
+                    Collection<String> combined = new ArrayList<>(syntaxStyle);
+                    combined.addAll(errorStyle);
+                    return combined;
+                });
             }
         };
 
         task.setOnSucceeded(event -> {
-            // 计算完成后，在 UI 线程应用样式
-            codeArea.setStyleSpans(0, task.getValue());
+            // 只有当编辑器文本长度没变时才应用（防止打字过快导致越界）
+            if (codeArea.getLength() == text.length()) {
+                codeArea.setStyleSpans(0, task.getValue());
+            }
         });
 
         executor.execute(task);

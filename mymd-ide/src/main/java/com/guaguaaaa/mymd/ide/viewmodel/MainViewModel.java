@@ -6,11 +6,14 @@ import com.guaguaaaa.mymd.core.util.CslGenerator;
 import com.guaguaaaa.mymd.core.ast.PandocNode;
 import com.guaguaaaa.mymd.core.MyMDCompiler;
 import com.guaguaaaa.mymd.core.api.CompilationResult;
+import com.guaguaaaa.mymd.core.api.Diagnostic;
 
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -26,12 +29,14 @@ public class MainViewModel {
     private final StringProperty citationTemplate = new SimpleStringProperty();
     private final StringProperty statusMessage = new SimpleStringProperty("Ready");
     private final BooleanProperty isCompiling = new SimpleBooleanProperty(false);
+    private final ObservableList<Diagnostic> diagnostics = FXCollections.observableArrayList();
 
     public StringProperty inputContentProperty() { return inputContent; }
     public StringProperty outputHtmlProperty() { return outputHtml; }
     public StringProperty citationTemplateProperty() { return citationTemplate; }
     public StringProperty statusMessageProperty() { return statusMessage; }
     public BooleanProperty isCompilingProperty() { return isCompiling; }
+    public ObservableList<Diagnostic> getDiagnostics() { return diagnostics; }
 
     private String getPandocExecutable() {
         String pandocHome = System.getenv("PANDOC_HOME");
@@ -77,18 +82,28 @@ public class MainViewModel {
      * 后台 PDF 编译任务
      */
     private void compilePdfInBackground(File sourceFile) {
-        // 如果已经在编译，不重复触发
         if (isCompiling.get()) return;
 
         isCompiling.set(true);
         statusMessage.set("Compiling PDF...");
 
-        // 获取当前的 AST JSON 字符串 (在 UI 线程快速完成)
+        // 获取当前的 AST JSON 字符串
         String mymdText = inputContent.get();
+
+        if (mymdText == null || mymdText.isBlank()) {
+            isCompiling.set(false);
+            statusMessage.set("Skipped: Content is empty");
+            return;
+        }
+
         String jsonOutput;
 
         // 调用 Core 的编译器
         CompilationResult result = MyMDCompiler.compile(mymdText);
+
+        javafx.application.Platform.runLater(() -> {
+            diagnostics.setAll(result.diagnostics);
+        });
 
         if (result.hasErrors()) {
             statusMessage.set("Syntax Error: " + result.diagnostics.get(0).message);
@@ -203,8 +218,18 @@ public class MainViewModel {
     public void convertToHtml() throws IOException, InterruptedException {
         String mymdText = inputContent.get();
 
+        // 如果输入为空，直接清空 HTML 预览并返回，不再进行编译
+        if (mymdText == null || mymdText.isBlank()) {
+            outputHtml.set("");
+            return;
+        }
+
         // 使用 MyMDCompiler 替代手动解析
         CompilationResult result = MyMDCompiler.compile(mymdText);
+
+        javafx.application.Platform.runLater(() -> {
+            diagnostics.setAll(result.diagnostics);
+        });
 
         if (result.hasErrors()) {
             // 如果有语法错误，直接在预览区显示错误信息
