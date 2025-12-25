@@ -21,7 +21,7 @@ import java.util.List;
 
 public class MainViewModel {
 
-    private final StringProperty inputContent = new SimpleStringProperty();
+    private final StringProperty inputContent = new SimpleStringProperty("");
     private final StringProperty outputHtml = new SimpleStringProperty();
     private final StringProperty citationTemplate = new SimpleStringProperty();
     private final StringProperty statusMessage = new SimpleStringProperty("Ready");

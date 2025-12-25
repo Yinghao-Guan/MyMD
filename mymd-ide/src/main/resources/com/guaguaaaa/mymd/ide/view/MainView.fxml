@@ -37,7 +37,7 @@
 
         <SplitPane VBox.vgrow="ALWAYS" dividerPositions="0.5">
             <items>
-                <TextArea fx:id="inputTextArea" promptText="Enter your MyMD content here..." style="-fx-font-family: 'Consolas';"/>
+                <javafx.scene.layout.StackPane fx:id="editorContainer" />
                 <WebView fx:id="previewWebView" />
             </items>
         </SplitPane>

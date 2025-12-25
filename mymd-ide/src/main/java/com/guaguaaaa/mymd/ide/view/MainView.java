@@ -1,6 +1,8 @@
 package com.guaguaaaa.mymd.ide.view;
 
 import com.guaguaaaa.mymd.ide.viewmodel.MainViewModel;
+import com.guaguaaaa.mymd.ide.util.SyntaxHighlighter;
+
 import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
 import javafx.scene.control.TextArea;
@@ -10,6 +12,18 @@ import javafx.scene.web.WebView;
 import javafx.stage.FileChooser;
 import javafx.animation.PauseTransition;
 import javafx.util.Duration;
+import javafx.scene.layout.StackPane;
+import javafx.application.Platform;
+import javafx.concurrent.Task;
+
+import java.util.Collection;
+import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import org.fxmisc.richtext.CodeArea;
+import org.fxmisc.richtext.LineNumberFactory;
+import org.fxmisc.richtext.model.StyleSpans;
 
 import java.io.File;
 import java.io.IOException;
@@ -21,8 +35,6 @@ import java.io.IOException;
 public class MainView {
 
     @FXML
-    private TextArea inputTextArea;
-    @FXML
     private WebView previewWebView;
     @FXML
     private javafx.scene.control.TextField templateField;
@@ -30,53 +42,109 @@ public class MainView {
     @FXML private javafx.scene.control.Label statusLabel;
     @FXML private javafx.scene.control.ProgressBar progressBar;
 
+    // 用于放置 RichTextFX CodeArea 的容器
+    @FXML
+    private StackPane editorContainer;
+
+    // 核心编辑器组件
+    private CodeArea codeArea;
+
     private MainViewModel viewModel;
+
+    private ExecutorService executor = Executors.newSingleThreadExecutor();
 
     /**
      * Sets the ViewModel and establishes data bindings between the view and the ViewModel.
      * @param viewModel The ViewModel instance to be used by this controller.
      */
-
     public void setViewModel(MainViewModel viewModel) {
         this.viewModel = viewModel;
-        inputTextArea.textProperty().bindBidirectional(this.viewModel.inputContentProperty());
-        templateField.textProperty().bindBidirectional(this.viewModel.citationTemplateProperty());
-        statusLabel.textProperty().bind(this.viewModel.statusMessageProperty());
-        // 当正在编译时，显示进度条（设为不确定进度模式）
-        progressBar.visibleProperty().bind(this.viewModel.isCompilingProperty());
-        progressBar.progressProperty().bind(
-                javafx.beans.binding.Bindings.when(this.viewModel.isCompilingProperty())
-                        .then(-1.0) // 负数表示 Indeterminate (左右来回跑)
-                        .otherwise(0.0)
-        );
-        this.viewModel.outputHtmlProperty().addListener((obs, oldVal, newVal) -> {
-            previewWebView.getEngine().loadContent(newVal);
-        });
 
-        // 实时预览逻辑 (Debounce)
-        // 创建一个暂停转换器，设置为 500 毫秒
-        PauseTransition debounceTimer = new PauseTransition(Duration.millis(500));
+        // 初始化 CodeArea (IDE 风格编辑器)
+        this.codeArea = new CodeArea();
 
-        // 定义计时器结束时要执行的动作：调用转换
-        debounceTimer.setOnFinished(event -> {
-            try {
-                // 调用 ViewModel 的转换方法
-                this.viewModel.convertToHtml();
-            } catch (Exception e) {
-                e.printStackTrace(); // 预览出错暂时只打印日志
+        // 启用行号
+        codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
+
+        codeArea.getStylesheets().add(getClass().getResource("editor.css").toExternalForm());
+
+        // 设置样式 (等宽字体，字号14)
+        codeArea.setStyle("-fx-font-family: 'Monospaced', 'Consolas', 'Courier New'; -fx-font-size: 14;");
+
+        // 将编辑器加入到 FXML 的 StackPane 容器中
+        editorContainer.getChildren().add(codeArea);
+
+        // 数据绑定与监听 (CodeArea <-> ViewModel)
+
+        // 初始加载：将 ViewModel 中的内容填入编辑器
+        String content = this.viewModel.inputContentProperty().get();
+        codeArea.replaceText(0, 0, content == null ? "" : content);
+
+        // 监听 ViewModel 变化 (例如用户点击 "Open File") -> 更新编辑器
+        // 加判断防止死循环
+        this.viewModel.inputContentProperty().addListener((obs, oldVal, newVal) -> {
+            if (!newVal.equals(codeArea.getText())) {
+                codeArea.replaceText(newVal);
             }
         });
 
-        // 监听输入框的文本变化
-        inputTextArea.textProperty().addListener((obs, oldVal, newVal) -> {
-            // 每次文本变化时，先从头开始计时
-            debounceTimer.playFromStart();
+        // 实时预览逻辑 (Debounce)
+        PauseTransition debounceTimer = new PauseTransition(Duration.millis(500));
+        debounceTimer.setOnFinished(event -> {
+            try {
+                this.viewModel.convertToHtml();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         });
+
+        // 监听编辑器输入 -> 更新 ViewModel 并触发预览 + 高亮
+        codeArea.textProperty().addListener((obs, oldText, newText) -> {
+            // 1. 更新 ViewModel
+            this.viewModel.inputContentProperty().set(newText);
+
+            // 2. 重置预览倒计时
+            debounceTimer.playFromStart();
+
+            // 3. [新增] 触发语法高亮 (异步执行)
+            computeHighlightingAsync(newText);
+        });
+
+        // 其他 UI 绑定
+        templateField.textProperty().bindBidirectional(this.viewModel.citationTemplateProperty());
+        statusLabel.textProperty().bind(this.viewModel.statusMessageProperty());
+
+        progressBar.visibleProperty().bind(this.viewModel.isCompilingProperty());
+        progressBar.progressProperty().bind(
+                javafx.beans.binding.Bindings.when(this.viewModel.isCompilingProperty())
+                        .then(-1.0)
+                        .otherwise(0.0)
+        );
+
+        this.viewModel.outputHtmlProperty().addListener((obs, oldVal, newVal) -> {
+            previewWebView.getEngine().loadContent(newVal);
+        });
+    }
+
+    private void computeHighlightingAsync(String text) {
+        Task<StyleSpans<Collection<String>>> task = new Task<>() {
+            @Override
+            protected StyleSpans<Collection<String>> call() {
+                // 在后台线程调用 Lexer
+                return SyntaxHighlighter.computeHighlighting(text);
+            }
+        };
+
+        task.setOnSucceeded(event -> {
+            // 计算完成后，在 UI 线程应用样式
+            codeArea.setStyleSpans(0, task.getValue());
+        });
+
+        executor.execute(task);
     }
 
     /**
      * Handles the "Save as LaTeX" button action.
-     * Opens a file chooser dialog and saves the converted LaTeX content to the selected file.
      */
     @FXML
     private void handleSaveAsLatex() {
@@ -85,7 +153,8 @@ public class MainView {
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("LaTeX Files", "*.tex"));
         fileChooser.setInitialFileName("output.tex");
 
-        File file = fileChooser.showSaveDialog(null);
+        // 使用 editorContainer 获取 Window
+        File file = fileChooser.showSaveDialog(editorContainer.getScene().getWindow());
 
         if (file != null) {
             try {
@@ -99,9 +168,6 @@ public class MainView {
 
     /**
      * Displays a standard error dialog with a detailed message.
-     * @param title The title of the dialog window.
-     * @param headerText The main error message.
-     * @param contentText The detailed content of the error.
      */
     private void showErrorDialog(String title, String headerText, String contentText) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
@@ -133,13 +199,13 @@ public class MainView {
         fileChooser.setTitle("Open File");
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Markdown Files", "*.md", "*.mymd", "*.txt"));
 
-        // 尝试定位到 sandbox 目录，方便测试
         File initialDir = new File("sandbox");
         if (initialDir.exists()) {
             fileChooser.setInitialDirectory(initialDir);
         }
 
-        File file = fileChooser.showOpenDialog(inputTextArea.getScene().getWindow());
+        // 使用 editorContainer 获取 Window
+        File file = fileChooser.showOpenDialog(editorContainer.getScene().getWindow());
         if (file != null) {
             try {
                 viewModel.loadFile(file);
@@ -156,14 +222,12 @@ public class MainView {
     private void handleSave() {
         File currentFile = viewModel.getCurrentFile();
         if (currentFile != null) {
-            // 如果已经有文件关联，直接保存
             try {
                 viewModel.saveFile(currentFile);
             } catch (IOException e) {
                 showErrorDialog("Save Failed", "Could not save file.", e.getMessage());
             }
         } else {
-            // 否则转到 "Save As"
             handleSaveAs();
         }
     }
@@ -180,7 +244,8 @@ public class MainView {
         File initialDir = new File("sandbox");
         if (initialDir.exists()) fileChooser.setInitialDirectory(initialDir);
 
-        File file = fileChooser.showSaveDialog(inputTextArea.getScene().getWindow());
+        // 使用 editorContainer 获取 Window
+        File file = fileChooser.showSaveDialog(editorContainer.getScene().getWindow());
         if (file != null) {
             try {
                 viewModel.saveFile(file);
@@ -195,6 +260,7 @@ public class MainView {
      */
     @FXML
     private void handleExit() {
+        executor.shutdown();
         javafx.application.Platform.exit();
     }
 }
