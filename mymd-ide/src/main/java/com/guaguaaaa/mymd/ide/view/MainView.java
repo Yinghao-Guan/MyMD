@@ -11,18 +11,17 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.web.WebView;
 import javafx.stage.FileChooser;
-import javafx.animation.PauseTransition;
-import javafx.util.Duration;
 import javafx.scene.layout.StackPane;
-import javafx.application.Platform;
 import javafx.concurrent.Task;
+import javafx.application.Platform;
+import javafx.concurrent.Worker;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.Base64;
 
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.LineNumberFactory;
@@ -31,98 +30,122 @@ import org.fxmisc.richtext.model.StyleSpans;
 import java.io.File;
 import java.io.IOException;
 
-/**
- * Controller class for the main application view.
- * This class handles user interactions and binds the view components to the ViewModel.
- */
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+
+import netscape.javascript.JSObject;
+
 public class MainView {
 
-    @FXML
-    private WebView previewWebView;
-    @FXML
-    private javafx.scene.control.TextField templateField;
-
+    @FXML private WebView previewWebView;
+    @FXML private javafx.scene.control.TextField templateField;
     @FXML private javafx.scene.control.Label statusLabel;
     @FXML private javafx.scene.control.ProgressBar progressBar;
+    @FXML private StackPane editorContainer;
 
-    // 用于放置 RichTextFX CodeArea 的容器
-    @FXML
-    private StackPane editorContainer;
-
-    // 核心编辑器组件
     private CodeArea codeArea;
-
     private MainViewModel viewModel;
-
     private ExecutorService executor = Executors.newSingleThreadExecutor();
-
     private List<Diagnostic> currentDiagnostics = new ArrayList<>();
 
-    /**
-     * Sets the ViewModel and establishes data bindings between the view and the ViewModel.
-     * @param viewModel The ViewModel instance to be used by this controller.
-     */
     public void setViewModel(MainViewModel viewModel) {
         this.viewModel = viewModel;
 
-        // 初始化 CodeArea (IDE 风格编辑器)
         this.codeArea = new CodeArea();
-
-        // 启用行号
         codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
-
         codeArea.getStylesheets().add(getClass().getResource("editor.css").toExternalForm());
-
-        // 设置样式 (等宽字体，字号14)
         codeArea.setStyle("-fx-font-family: 'Monospaced', 'Consolas', 'Courier New'; -fx-font-size: 14;");
-
-        // 将编辑器加入到 FXML 的 StackPane 容器中
         editorContainer.getChildren().add(codeArea);
 
-        // 数据绑定与监听 (CodeArea <-> ViewModel)
-
-        // 初始加载：将 ViewModel 中的内容填入编辑器
         String content = this.viewModel.inputContentProperty().get();
         codeArea.replaceText(0, 0, content == null ? "" : content);
 
-        // 监听 ViewModel 变化 (例如用户点击 "Open File") -> 更新编辑器
-        // 加判断防止死循环
         this.viewModel.inputContentProperty().addListener((obs, oldVal, newVal) -> {
             if (!newVal.equals(codeArea.getText())) {
                 codeArea.replaceText(newVal);
             }
         });
 
-        // 实时预览逻辑 (Debounce)
-        PauseTransition debounceTimer = new PauseTransition(Duration.millis(500));
-        debounceTimer.setOnFinished(event -> {
-            try {
-                this.viewModel.convertToHtml();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
-
-        // 监听编辑器输入 -> 更新 ViewModel 并触发预览 + 高亮
         codeArea.textProperty().addListener((obs, oldText, newText) -> {
-            // 更新 ViewModel
             this.viewModel.inputContentProperty().set(newText);
-
-            // 重置预览倒计时
-            debounceTimer.playFromStart();
-
-            // 触发语法高亮 (异步执行)
             computeHighlightingAsync(newText);
         });
 
         viewModel.getDiagnostics().addListener((javafx.collections.ListChangeListener.Change<? extends Diagnostic> c) -> {
-            // 更新本地缓存
             this.currentDiagnostics = new ArrayList<>(viewModel.getDiagnostics());
-            // 触发重绘 (使用当前文本)
             computeHighlightingAsync(codeArea.getText());
         });
 
-        // 其他 UI 绑定
+        this.viewModel.generatedPdfPathProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null && !newVal.isEmpty()) {
+                File pdfFile = new File(newVal);
+                if (pdfFile.exists()) {
+                    try {
+                        // 1. 读取资源路径
+                        var viewerResource = getClass().getResource("pdfjs/web/viewer.html");
+                        if (viewerResource == null) {
+                            System.err.println("Error: Could not find pdfjs/web/viewer.html");
+                            return;
+                        }
+                        String viewerUrl = viewerResource.toExternalForm();
+
+                        // 2. 读取 PDF 并转 Base64
+                        byte[] pdfBytes = Files.readAllBytes(pdfFile.toPath());
+                        String base64 = Base64.getEncoder().encodeToString(pdfBytes);
+
+                        // 3. 加载 viewer.html
+                        Platform.runLater(() -> {
+                            // 添加一个简单的 Java 控制台桥接，方便在 IDEA 控制台看到 JS 报错
+                            previewWebView.getEngine().getLoadWorker().stateProperty().addListener((observable, oldState, newState) -> {
+                                if (newState == Worker.State.SUCCEEDED) {
+                                    // 注入 JavaBridge 用于调试
+                                    JSObject window = (JSObject) previewWebView.getEngine().executeScript("window");
+                                    window.setMember("javaConsole", new JavaConsoleBridge());
+
+                                    // 重定向 JS console.log 到 Java System.out
+                                    previewWebView.getEngine().executeScript(
+                                            "console.log = function(message) { javaConsole.log(message); };" +
+                                                    "console.error = function(message) { javaConsole.error(message); };"
+                                    );
+
+                                    // 4. 核心修复：使用 setInterval 轮询等待 PDFViewerApplication 初始化
+                                    String jsCode =
+                                            "function loadPdfLoop() {" +
+                                                    "   var checkInterval = setInterval(function() {" +
+                                                    "       if (window.PDFViewerApplication && window.PDFViewerApplication.open) {" +
+                                                    "           clearInterval(checkInterval);" +
+                                                    "           console.log('PDF.js ready. Opening PDF...');" +
+                                                    "           try {" +
+                                                    "               var pdfData = atob('" + base64 + "');" +
+                                                    "               var uint8Array = new Uint8Array(pdfData.length);" +
+                                                    "               for (var i = 0; i < pdfData.length; i++) {" +
+                                                    "                   uint8Array[i] = pdfData.charCodeAt(i);" +
+                                                    "               }" +
+                                                    "               window.PDFViewerApplication.open({ data: uint8Array });" +
+                                                    "           } catch (e) { console.error('Load error: ' + e); }" +
+                                                    "       } else {" +
+                                                    "           console.log('Waiting for PDF.js...');" +
+                                                    "       }" +
+                                                    "   }, 200);" + // 每 200ms 检查一次
+                                                    "}" +
+                                                    "loadPdfLoop();";
+
+                                    previewWebView.getEngine().executeScript(jsCode);
+                                }
+                            });
+
+                            previewWebView.getEngine().load(viewerUrl);
+                        });
+
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        });
+
+
         templateField.textProperty().bindBidirectional(this.viewModel.citationTemplateProperty());
         statusLabel.textProperty().bind(this.viewModel.statusMessageProperty());
 
@@ -132,33 +155,15 @@ public class MainView {
                         .then(-1.0)
                         .otherwise(0.0)
         );
+    }
 
-        this.viewModel.outputHtmlProperty().addListener((obs, oldVal, newVal) -> {
-            previewWebView.getEngine().loadContent(newVal);
-        });
-
-        // 同步滚动逻辑 (Editor -> Preview)
-        codeArea.estimatedScrollYProperty().addListener((obs, oldVal, newVal) -> {
-            // 获取编辑器总高度估算值
-            double totalHeight = codeArea.getTotalHeightEstimate();
-            // 获取编辑器视口高度
-            double viewportHeight = codeArea.getHeight();
-
-            // 防止除以零或由极小高度导致的错误
-            if (totalHeight <= viewportHeight) {
-                return;
-            }
-
-            // 计算当前滚动百分比
-            double scrollY = newVal.doubleValue();
-            double percentage = scrollY / (totalHeight - viewportHeight);
-
-            // 限制在 0.0 到 1.0 之间
-            percentage = Math.max(0.0, Math.min(1.0, percentage));
-
-            // 同步给 WebView
-            syncPreviewScroll(percentage);
-        });
+    public static class JavaConsoleBridge {
+        public void log(String text) {
+            System.out.println("JS LOG: " + text);
+        }
+        public void error(String text) {
+            System.err.println("JS ERROR: " + text);
+        }
     }
 
     private void computeHighlightingAsync(String text) {
@@ -167,14 +172,8 @@ public class MainView {
         Task<StyleSpans<Collection<String>>> task = new Task<>() {
             @Override
             protected StyleSpans<Collection<String>> call() {
-                // 计算语法高亮 (Base Layer)
                 StyleSpans<Collection<String>> syntaxSpans = SyntaxHighlighter.computeHighlighting(text);
-
-                // 计算错误高亮 (Error Layer)
                 StyleSpans<Collection<String>> errorSpans = SyntaxHighlighter.computeErrorHighlighting(text, diagnosticsSnapshot);
-
-                // 合并图层 (Overlay)
-                // 逻辑：将两个集合合并 (A + B)
                 return syntaxSpans.overlay(errorSpans, (syntaxStyle, errorStyle) -> {
                     Collection<String> combined = new ArrayList<>(syntaxStyle);
                     combined.addAll(errorStyle);
@@ -184,7 +183,6 @@ public class MainView {
         };
 
         task.setOnSucceeded(event -> {
-            // 只有当编辑器文本长度没变时才应用（防止打字过快导致越界）
             if (codeArea.getLength() == text.length()) {
                 codeArea.setStyleSpans(0, task.getValue());
             }
@@ -193,19 +191,13 @@ public class MainView {
         executor.execute(task);
     }
 
-    /**
-     * Handles the "Save as LaTeX" button action.
-     */
     @FXML
     private void handleSaveAsLatex() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Save as LaTeX File");
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("LaTeX Files", "*.tex"));
         fileChooser.setInitialFileName("output.tex");
-
-        // 使用 editorContainer 获取 Window
         File file = fileChooser.showSaveDialog(editorContainer.getScene().getWindow());
-
         if (file != null) {
             try {
                 viewModel.saveAsLatex(file);
@@ -216,15 +208,11 @@ public class MainView {
         }
     }
 
-    /**
-     * Displays a standard error dialog with a detailed message.
-     */
     private void showErrorDialog(String title, String headerText, String contentText) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setTitle(title);
         alert.setHeaderText(headerText);
         alert.setContentText(contentText);
-
         TextArea textArea = new TextArea(contentText);
         textArea.setEditable(false);
         textArea.setWrapText(true);
@@ -236,25 +224,18 @@ public class MainView {
         expContent.setMaxWidth(Double.MAX_VALUE);
         expContent.add(textArea, 0, 0);
         alert.getDialogPane().setExpandableContent(expContent);
-
         alert.showAndWait();
     }
 
-    /**
-     * 处理 "Open" 菜单动作
-     */
     @FXML
     private void handleOpen() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Open File");
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Markdown Files", "*.md", "*.mymd", "*.txt"));
-
         File initialDir = new File("sandbox");
         if (initialDir.exists()) {
             fileChooser.setInitialDirectory(initialDir);
         }
-
-        // 使用 editorContainer 获取 Window
         File file = fileChooser.showOpenDialog(editorContainer.getScene().getWindow());
         if (file != null) {
             try {
@@ -265,9 +246,6 @@ public class MainView {
         }
     }
 
-    /**
-     * 处理 "Save" 菜单动作
-     */
     @FXML
     private void handleSave() {
         File currentFile = viewModel.getCurrentFile();
@@ -282,19 +260,13 @@ public class MainView {
         }
     }
 
-    /**
-     * 处理 "Save As" 菜单动作
-     */
     @FXML
     private void handleSaveAs() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Save As");
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Markdown Files", "*.md", "*.mymd"));
-
         File initialDir = new File("sandbox");
         if (initialDir.exists()) fileChooser.setInitialDirectory(initialDir);
-
-        // 使用 editorContainer 获取 Window
         File file = fileChooser.showSaveDialog(editorContainer.getScene().getWindow());
         if (file != null) {
             try {
@@ -305,41 +277,12 @@ public class MainView {
         }
     }
 
-    /**
-     * 同步滚动预览视图
-     * @param percentage 滚动百分比 (0.0 ~ 1.0)
-     */
-    private void syncPreviewScroll(double percentage) {
-        if (previewWebView == null || previewWebView.getEngine() == null) {
-            return;
-        }
-
-        // 使用 JavaScript 控制 WebView 滚动
-        // document.body.scrollHeight - window.innerHeight 计算可滚动的最大距离
-        String script = String.format(
-                "window.scrollTo(0, (document.body.scrollHeight - window.innerHeight) * %f);",
-                percentage
-        );
-
-        try {
-            previewWebView.getEngine().executeScript(script);
-        } catch (Exception e) {
-            // 页面可能还没加载完，忽略脚本错误
-        }
-    }
-
-    /**
-     * 清理资源，关闭后台线程
-     */
     public void shutdown() {
         if (executor != null) {
             executor.shutdownNow();
         }
     }
 
-    /**
-     * 处理 "Exit" 菜单动作
-     */
     @FXML
     private void handleExit() {
         shutdown();
