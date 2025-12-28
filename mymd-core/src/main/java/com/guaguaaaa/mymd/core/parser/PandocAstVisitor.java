@@ -6,13 +6,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 
 /**
  * A visitor that traverses the ANTLR parse tree and constructs a Pandoc Abstract Syntax Tree (AST).
  * This class maps the custom MyMD grammar rules to Pandoc's native JSON format.
  */
-public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
+public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
 
     /**
      * Visits the document rule and creates the root Pandoc AST node.
@@ -21,11 +23,26 @@ public class PandocAstVisitor extends MyMDBaseVisitor<PandocNode> {
      */
     @Override
     public PandocNode visitDocument(MyMDParser.DocumentContext ctx) {
+        // ... 之前的 YAML 解析逻辑 ...
+        Map<String, Object> metadataMap = new java.util.HashMap<>();
+        if (ctx.metadata() != null) {
+            for (MyMDParser.Yaml_entryContext entry : ctx.metadata().yaml_entry()) {
+                String key = entry.YAML_KEY().getText().trim();
+                String value = entry.YAML_VALUE().getText().trim();
+
+                Map<String, String> metaString = new java.util.HashMap<>();
+                metaString.put("t", "MetaString");
+                metaString.put("c", value);
+                metadataMap.put(key, metaString);
+            }
+        }
+
         List<Block> blocks = ctx.block().stream()
                 .map(this::visit)
                 .map(node -> (Block) node)
                 .collect(Collectors.toList());
-        return new PandocAst(blocks);
+
+        return new PandocAst(metadataMap, blocks);
     }
 
     /**

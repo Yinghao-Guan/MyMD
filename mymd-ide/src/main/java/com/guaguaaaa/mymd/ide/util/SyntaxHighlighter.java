@@ -47,7 +47,7 @@ public class SyntaxHighlighter {
 
             // 动态逻辑处理 (粗体/斜体状态, 列表行首判断, 图片前瞻)
             // 处理粗体 **
-            if (tokenType == MyMDLexer.T__0) {
+            if (tokenType == MyMDLexer.BOLD_MARK) {
                 isBold = !isBold;
                 styles.add("bold-marker");
                 isLineStart = false;
@@ -164,6 +164,13 @@ public class SyntaxHighlighter {
      */
     private static String getStyleClass(int tokenType) {
         switch (tokenType) {
+            case MyMDLexer.YAML_START:
+            case MyMDLexer.YAML_END:
+            case MyMDLexer.YAML_KEY:
+            case MyMDLexer.YAML_COLON:
+                return "yaml-marker"; // 需在 editor.css 中定义样式
+            case MyMDLexer.YAML_VALUE:
+                return "yaml-value";
             case MyMDLexer.H1:
             case MyMDLexer.H2:
             case MyMDLexer.H3:

@@ -18,6 +18,16 @@
 
 /* === 语法高亮样式 === */
 
+/* YAML 元数据区域样式 */
+.yaml-marker {
+    -fx-fill: #9b59b6; /* 紫色：用于 --- 分割符、Key 和冒号，便于与正文区分 */
+    -fx-font-weight: bold;
+}
+
+.yaml-value {
+    -fx-fill: #e67e22; /* 橙色：用于配置项的值，与代码块的深橙色（#d35400）呼应 */
+}
+
 /* 标题 H1 - H6 */
 .header {
     -fx-fill: #005cc5; /* 蓝色 */
