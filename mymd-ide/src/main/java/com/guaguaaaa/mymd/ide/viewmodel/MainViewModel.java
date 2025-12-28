@@ -84,10 +84,9 @@ public class MainViewModel {
         if (isCompiling.get()) return;
 
         isCompiling.set(true);
-        statusMessage.set("Compiling PDF...");
+        statusMessage.set("Compiling...");
 
         String mymdText = inputContent.get();
-
         if (mymdText == null || mymdText.isBlank()) {
             isCompiling.set(false);
             statusMessage.set("Skipped: Content is empty");
@@ -113,12 +112,11 @@ public class MainViewModel {
         Thread t = new Thread(() -> {
             try {
                 String sourcePath = sourceFile.getAbsolutePath();
-                String pdfPath;
-                if (sourcePath.lastIndexOf(".") > 0) {
-                    pdfPath = sourcePath.substring(0, sourcePath.lastIndexOf(".")) + ".pdf";
-                } else {
-                    pdfPath = sourcePath + ".pdf";
-                }
+                String basePath = sourcePath.lastIndexOf(".") > 0 ?
+                        sourcePath.substring(0, sourcePath.lastIndexOf(".")) :
+                        sourcePath;
+                String pdfPath = basePath + ".pdf";
+                String texPath = basePath + ".tex";
 
                 File bibFile = getAssociatedBibFile();
                 boolean useBib = bibFile.exists();
@@ -131,45 +129,79 @@ public class MainViewModel {
                     Files.writeString(cslFile.toPath(), cslXml, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
                 }
 
-                List<String> command = new ArrayList<>();
-                command.add(getPandocExecutable());
-                command.add("-f"); command.add("json");
-                command.add("-t"); command.add("pdf");
-                command.add("-o"); command.add(pdfPath);
-                command.add("--pdf-engine=xelatex");
-                // 建议加上中文字体支持，防止 PDF 中文乱码（根据系统环境调整）
-                // command.add("-V"); command.add("mainfont=PingFang SC"); // Mac
-                command.add("-V"); command.add("mainfont=Microsoft YaHei"); // Windows
+                List<String> texCommand = new ArrayList<>();
+                texCommand.add(getPandocExecutable());
+                texCommand.add("-f"); texCommand.add("json");
+                texCommand.add("-t"); texCommand.add("latex");
+                texCommand.add("-s");
+                texCommand.add("-o"); texCommand.add(texPath);
 
                 if (useBib) {
-                    command.add("--citeproc");
-                    command.add("--bibliography"); command.add(bibFile.getAbsolutePath());
-                    command.add("--csl"); command.add(cslFile.getAbsolutePath());
-                    command.add("--metadata=link-bibliography=false");
+                    texCommand.add("--citeproc");
+                    texCommand.add("--bibliography"); texCommand.add(bibFile.getAbsolutePath());
+                    texCommand.add("--csl"); texCommand.add(cslFile.getAbsolutePath());
+                    texCommand.add("--metadata=link-bibliography=false");
                 }
 
-                ProcessBuilder processBuilder = new ProcessBuilder(command);
-                Process process = processBuilder.start();
+                ProcessBuilder texPb = new ProcessBuilder(texCommand);
+                Process texProcess = texPb.start();
+                try (OutputStreamWriter writer = new OutputStreamWriter(texProcess.getOutputStream(), StandardCharsets.UTF_8)) {
+                    writer.write(jsonOutput);
+                }
+                int texExit = texProcess.waitFor();
+                if (texExit != 0) {
+                    System.err.println("Failed to generate .tex file. Exit code: " + texExit);
+                } else {
+                    System.out.println("LaTeX file generated: " + texPath);
+                }
 
-                try (OutputStreamWriter writer = new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8)) {
+                List<String> pdfCommand = new ArrayList<>();
+                pdfCommand.add(getPandocExecutable());
+                pdfCommand.add("-f"); pdfCommand.add("json");
+                pdfCommand.add("-t"); pdfCommand.add("pdf");
+                pdfCommand.add("-o"); pdfCommand.add(pdfPath);
+                pdfCommand.add("--pdf-engine=xelatex");
+                // 保持字体设置
+                // command.add("-V"); command.add("mainfont=PingFang SC");
+                pdfCommand.add("-V"); pdfCommand.add("mainfont=Microsoft YaHei");
+
+                if (useBib) {
+                    pdfCommand.add("--citeproc");
+                    pdfCommand.add("--bibliography"); pdfCommand.add(bibFile.getAbsolutePath());
+                    pdfCommand.add("--csl"); pdfCommand.add(cslFile.getAbsolutePath());
+                    pdfCommand.add("--metadata=link-bibliography=false");
+                }
+
+                ProcessBuilder pdfPb = new ProcessBuilder(pdfCommand);
+                Process pdfProcess = pdfPb.start();
+                try (OutputStreamWriter writer = new OutputStreamWriter(pdfProcess.getOutputStream(), StandardCharsets.UTF_8)) {
                     writer.write(jsonOutput);
                 }
 
                 StringBuilder errorOutput = new StringBuilder();
-                try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+                try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(pdfProcess.getErrorStream()))) {
                     String line;
                     while ((line = errorReader.readLine()) != null) {
                         errorOutput.append(line).append("\n");
                     }
                 }
 
-                int exitCode = process.waitFor();
+                int exitCode = pdfProcess.waitFor();
+
+                if (exitCode == 0) {
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException ignored) {}
+                }
 
                 Platform.runLater(() -> {
                     isCompiling.set(false);
                     if (exitCode == 0) {
-                        statusMessage.set("PDF Saved: " + new File(pdfPath).getName());
+                        statusMessage.set("Saved: " + new File(pdfPath).getName() + " (& .tex)");
+
+                        generatedPdfPath.set(null);
                         generatedPdfPath.set(pdfPath);
+
                     } else {
                         statusMessage.set("PDF Error (Code " + exitCode + ")");
                         System.err.println("Pandoc Error:\n" + errorOutput);
@@ -209,119 +241,6 @@ public class MainViewModel {
 
         return new File(bibPath);
     }
-
-//    /**
-//     * 动态生成 CSL 并调用 Pandoc 处理引用
-//     */
-//    public void convertToHtml() throws IOException, InterruptedException {
-//        String mymdText = inputContent.get();
-//
-//        // 如果输入为空，直接清空 HTML 预览并返回，不再进行编译
-//        if (mymdText == null || mymdText.isBlank()) {
-//            outputHtml.set("");
-//            return;
-//        }
-//
-//        // 使用 MyMDCompiler 替代手动解析
-//        CompilationResult result = MyMDCompiler.compile(mymdText);
-//
-//        javafx.application.Platform.runLater(() -> {
-//            diagnostics.setAll(result.diagnostics);
-//        });
-//
-//        if (result.hasErrors()) {
-//            // 如果有语法错误，直接在预览区显示错误信息
-//            outputHtml.set("<h3>Syntax Error</h3><p>" + result.diagnostics.get(0).message + "</p>");
-//            return;
-//        }
-//
-//        String jsonOutput = result.pandocJson;
-//
-//        // --- 调试：打印一下生成的 JSON，确认 AST 里是 Cite 对象而不是 Str ---
-//        System.out.println("DEBUG: Generated JSON AST fragment: " +
-//                (jsonOutput.length() > 500 ? jsonOutput.substring(0, 500) + "..." : jsonOutput));
-//
-//        // 准备文件 (使用绝对路径)
-//        File bibFile = getAssociatedBibFile();
-//        File cslFile = new File("custom_style.csl");
-//
-//        boolean useBib = bibFile.exists();
-//
-//        // 检查文件是否存在
-//        if (!bibFile.exists()) {
-//            outputHtml.set("Error: Cannot find test.bib at: " + bibFile.getAbsolutePath());
-//            return;
-//        }
-//
-//        // 生成 CSL
-//        String userCitationTemplate = citationTemplate.get();
-//        if (userCitationTemplate == null || userCitationTemplate.isBlank()) {
-//            // 给一个默认值兜底
-//            userCitationTemplate = "{author} ({year}). {title}.";
-//        }
-//        String cslXmlContent = CslGenerator.generateCslXml(userCitationTemplate);
-//        Files.writeString(cslFile.toPath(), cslXmlContent, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-//
-//        // Pandoc
-//        // 构建 ProcessBuilder
-//        List<String> command = new ArrayList<>();
-//        command.add(getPandocExecutable());
-//        command.add("-f"); command.add("json");
-//        command.add("-t"); command.add("html");
-//
-//        if (useBib) {
-//            command.add("--citeproc");
-//            command.add("--bibliography"); command.add(bibFile.getAbsolutePath());
-//            command.add("--csl"); command.add(cslFile.getAbsolutePath());
-//            command.add("--metadata=link-bibliography=false");
-//        }
-//        command.add("--metadata=link-citations=true");
-//
-//        ProcessBuilder processBuilder = new ProcessBuilder(command);
-//
-//        Process process = processBuilder.start();
-//        try (OutputStreamWriter writer = new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8)) {
-//            writer.write(jsonOutput);
-//        }
-//
-//        // 读取标准输出 (HTML)
-//        StringBuilder htmlOutput = new StringBuilder();
-//        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-//            String line;
-//            while ((line = reader.readLine()) != null) {
-//                htmlOutput.append(line).append("\n");
-//            }
-//        }
-//
-//        // 读取错误输出 (Stderr)
-//        StringBuilder errorOutput = new StringBuilder();
-//        try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
-//            String line;
-//            while ((line = errorReader.readLine()) != null) {
-//                errorOutput.append(line).append("\n");
-//            }
-//        }
-//
-//        int exitCode = process.waitFor();
-//        if (exitCode == 0) {
-//            // 注入 CSS 样式
-//            String css = """
-//                <style>
-//                    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6; padding: 20px; max-width: 800px; margin: 0 auto; }
-//                    blockquote { border-left: 4px solid #dfe2e5; color: #6a737d; margin: 0; padding-left: 1em; }
-//                    hr { height: 0.25em; padding: 0; margin: 24px 0; background-color: #e1e4e8; border: 0; }
-//                    img { max-width: 100%; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-radius: 4px; }
-//                    a { color: #0366d6; text-decoration: none; }
-//                    a:hover { text-decoration: underline; }
-//                    .citation { color: #0366d6; }
-//                </style>
-//                """;
-//
-//            outputHtml.set(css + htmlOutput.toString());
-//        } else {
-//            outputHtml.set("Error: Pandoc failed (Exit Code " + exitCode + ")\n" + errorOutput.toString());
-//        }
-//    }
 
     /**
      * @param outputFile The file to which the LaTeX content will be saved.

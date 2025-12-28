@@ -160,17 +160,12 @@ public class SyntaxHighlighter {
 
     /**
      * Token 类型到 CSS 类名的静态映射
-     * (BANG 和 DASH 已移除，由主循环处理)
      */
     private static String getStyleClass(int tokenType) {
         switch (tokenType) {
-            case MyMDLexer.YAML_START:
-            case MyMDLexer.YAML_END:
-            case MyMDLexer.YAML_KEY:
-            case MyMDLexer.YAML_COLON:
-                return "yaml-marker"; // 需在 editor.css 中定义样式
-            case MyMDLexer.YAML_VALUE:
-                return "yaml-value";
+            case MyMDLexer.YAML_BLOCK:
+                return "yaml-marker";
+
             case MyMDLexer.H1:
             case MyMDLexer.H2:
             case MyMDLexer.H3:

@@ -77,65 +77,69 @@ public class MainView {
             computeHighlightingAsync(codeArea.getText());
         });
 
+        // 监听生成的 PDF 路径
         this.viewModel.generatedPdfPathProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null && !newVal.isEmpty()) {
                 File pdfFile = new File(newVal);
                 if (pdfFile.exists()) {
                     try {
-                        // 1. 读取资源路径
-                        var viewerResource = getClass().getResource("pdfjs/web/viewer.html");
-                        if (viewerResource == null) {
-                            System.err.println("Error: Could not find pdfjs/web/viewer.html");
-                            return;
-                        }
-                        String viewerUrl = viewerResource.toExternalForm();
-
-                        // 2. 读取 PDF 并转 Base64
+                        // 1. 读取数据 (这里已经有了 ViewModel 的 100ms 缓冲，更安全)
                         byte[] pdfBytes = Files.readAllBytes(pdfFile.toPath());
                         String base64 = Base64.getEncoder().encodeToString(pdfBytes);
 
-                        // 3. 加载 viewer.html
+                        // 2. 检查 WebView 是否已经加载了 viewer.html
+                        String currentLoc = previewWebView.getEngine().getLocation();
+                        boolean isAlreadyLoaded = currentLoc != null && currentLoc.endsWith("viewer.html");
+
+                        // 定义通用的 JS 注入代码：调用 PDF.js 打开数据
+                        // 我们定义一个 updatePDF 函数，如果不存在则等待
+                        String updateJs =
+                                "function updatePDF(base64Data) {" +
+                                        "   try {" +
+                                        "       var pdfData = atob(base64Data);" +
+                                        "       var uint8Array = new Uint8Array(pdfData.length);" +
+                                        "       for (var i = 0; i < pdfData.length; i++) {" +
+                                        "           uint8Array[i] = pdfData.charCodeAt(i);" +
+                                        "       }" +
+                                        "       if (window.PDFViewerApplication) {" +
+                                        "           window.PDFViewerApplication.open({ data: uint8Array });" +
+                                        "       }" +
+                                        "   } catch(e) { console.error('Update Error: ' + e); }" +
+                                        "}" +
+                                        // 立即尝试调用
+                                        "if (window.PDFViewerApplication && window.PDFViewerApplication.open) {" +
+                                        "    updatePDF('" + base64 + "');" +
+                                        "}";
+
                         Platform.runLater(() -> {
-                            // 添加一个简单的 Java 控制台桥接，方便在 IDEA 控制台看到 JS 报错
-                            previewWebView.getEngine().getLoadWorker().stateProperty().addListener((observable, oldState, newState) -> {
-                                if (newState == Worker.State.SUCCEEDED) {
-                                    // 注入 JavaBridge 用于调试
-                                    JSObject window = (JSObject) previewWebView.getEngine().executeScript("window");
-                                    window.setMember("javaConsole", new JavaConsoleBridge());
+                            if (isAlreadyLoaded) {
+                                // === 方案 A: 软更新 (Soft Update) ===
+                                // 页面已在，直接喂数据，不刷新页面
+                                previewWebView.getEngine().executeScript(updateJs);
+                            } else {
+                                // === 方案 B: 首次加载 (First Load) ===
+                                var viewerResource = getClass().getResource("pdfjs/web/viewer.html");
+                                if (viewerResource == null) return;
 
-                                    // 重定向 JS console.log 到 Java System.out
-                                    previewWebView.getEngine().executeScript(
-                                            "console.log = function(message) { javaConsole.log(message); };" +
-                                                    "console.error = function(message) { javaConsole.error(message); };"
-                                    );
+                                previewWebView.getEngine().load(viewerResource.toExternalForm());
 
-                                    // 4. 核心修复：使用 setInterval 轮询等待 PDFViewerApplication 初始化
-                                    String jsCode =
-                                            "function loadPdfLoop() {" +
-                                                    "   var checkInterval = setInterval(function() {" +
-                                                    "       if (window.PDFViewerApplication && window.PDFViewerApplication.open) {" +
-                                                    "           clearInterval(checkInterval);" +
-                                                    "           console.log('PDF.js ready. Opening PDF...');" +
-                                                    "           try {" +
-                                                    "               var pdfData = atob('" + base64 + "');" +
-                                                    "               var uint8Array = new Uint8Array(pdfData.length);" +
-                                                    "               for (var i = 0; i < pdfData.length; i++) {" +
-                                                    "                   uint8Array[i] = pdfData.charCodeAt(i);" +
-                                                    "               }" +
-                                                    "               window.PDFViewerApplication.open({ data: uint8Array });" +
-                                                    "           } catch (e) { console.error('Load error: ' + e); }" +
-                                                    "       } else {" +
-                                                    "           console.log('Waiting for PDF.js...');" +
-                                                    "       }" +
-                                                    "   }, 200);" + // 每 200ms 检查一次
-                                                    "}" +
-                                                    "loadPdfLoop();";
+                                // 监听加载完成
+                                previewWebView.getEngine().getLoadWorker().stateProperty().addListener((observable, oldState, newState) -> {
+                                    if (newState == Worker.State.SUCCEEDED) {
+                                        // 页面加载完后，还需要轮询等待 PDF.js 内部初始化完成
+                                        String initJs =
+                                                "var checkTimer = setInterval(function() {" +
+                                                        "   if (window.PDFViewerApplication && window.PDFViewerApplication.open) {" +
+                                                        "       clearInterval(checkTimer);" +
+                                                        "       updatePDF('" + base64 + "');" +
+                                                        "   }" +
+                                                        "}, 100);" + // 每100ms检查一次
+                                                        updateJs; // 附带上 updatePDF 函数定义
 
-                                    previewWebView.getEngine().executeScript(jsCode);
-                                }
-                            });
-
-                            previewWebView.getEngine().load(viewerUrl);
+                                        previewWebView.getEngine().executeScript(initJs);
+                                    }
+                                });
+                            }
                         });
 
                     } catch (Exception e) {

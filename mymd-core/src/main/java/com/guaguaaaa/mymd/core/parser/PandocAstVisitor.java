@@ -1,13 +1,16 @@
 package com.guaguaaaa.mymd.core.parser;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import com.guaguaaaa.mymd.core.ast.*;
+import com.guaguaaaa.mymd.core.util.MetadataConverter;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 
 
 /**
@@ -16,33 +19,63 @@ import java.util.Map;
  */
 public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
 
+    // 保存解析出来的 Metadata
+    private JsonObject metadata = new JsonObject();
+    // 保存正文块
+    private List<Block> blocks = new ArrayList<>();
+
+    private final Gson gson = new GsonBuilder().create();
+
     /**
-     * Visits the document rule and creates the root Pandoc AST node.
-     * @param ctx The parse tree context for the document.
-     * @return A {@link PandocAst} node representing the entire document.
+     * 获取最终的 Pandoc JSON 字符串
+     */
+    public String getPandocJson() {
+        JsonObject root = new JsonObject();
+
+        JsonArray apiVersion = new JsonArray();
+        apiVersion.add(1);
+        apiVersion.add(23);
+        root.add("pandoc-api-version", apiVersion);
+
+        root.add("meta", this.metadata != null ? this.metadata : new JsonObject());
+
+        root.add("blocks", gson.toJsonTree(this.blocks));
+
+        return gson.toJson(root);
+    }
+
+    /**
+     * 对应 MyMDParser.g4 中的 doc 规则
      */
     @Override
-    public PandocNode visitDocument(MyMDParser.DocumentContext ctx) {
-        // ... 之前的 YAML 解析逻辑 ...
-        Map<String, Object> metadataMap = new java.util.HashMap<>();
-        if (ctx.metadata() != null) {
-            for (MyMDParser.Yaml_entryContext entry : ctx.metadata().yaml_entry()) {
-                String key = entry.YAML_KEY().getText().trim();
-                String value = entry.YAML_VALUE().getText().trim();
-
-                Map<String, String> metaString = new java.util.HashMap<>();
-                metaString.put("t", "MetaString");
-                metaString.put("c", value);
-                metadataMap.put(key, metaString);
-            }
+    public PandocNode visitDoc(MyMDParser.DocContext ctx) {
+        if (ctx.yaml_block() != null) {
+            visit(ctx.yaml_block());
         }
 
-        List<Block> blocks = ctx.block().stream()
+        this.blocks = ctx.block().stream()
                 .map(this::visit)
                 .map(node -> (Block) node)
                 .collect(Collectors.toList());
 
-        return new PandocAst(metadataMap, blocks);
+        return null;
+    }
+
+    /**
+     * 处理 YAML 块
+     */
+    @Override
+    public PandocNode visitYaml_block(MyMDParser.Yaml_blockContext ctx) {
+        String rawYaml = ctx.getText();
+        JsonObject parsedMeta = MetadataConverter.parseYamlToPandocMeta(rawYaml);
+
+        // 合并 Metadata
+        if (parsedMeta != null) {
+            for (String key : parsedMeta.keySet()) {
+                this.metadata.add(key, parsedMeta.get(key));
+            }
+        }
+        return null;
     }
 
     /**
@@ -148,8 +181,21 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
     @Override
     public PandocNode visitCodeBlock(MyMDParser.CodeBlockContext ctx) {
         String fullText = ctx.CODE_BLOCK().getText();
-        String codeText = fullText.substring(3, fullText.length() - 3).trim();
-        return new CodeBlock(codeText);
+
+        String inner = fullText.substring(3, fullText.length() - 3);
+
+        String language = "";
+        String codeContent = inner;
+
+        int firstNewLineIndex = inner.indexOf('\n');
+        if (firstNewLineIndex > 0) {
+            language = inner.substring(0, firstNewLineIndex).trim();
+            codeContent = inner.substring(firstNewLineIndex + 1);
+        } else if (!inner.isBlank()) {
+
+        }
+
+        return new CodeBlock(codeContent, language);
     }
 
     /**

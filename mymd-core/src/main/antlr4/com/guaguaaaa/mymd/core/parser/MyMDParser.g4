@@ -4,16 +4,12 @@ options { tokenVocab=MyMDLexer; }
 
 // ======================= Parser Rules =======================
 
-document
-    : metadata? block+ EOF
+doc
+    : yaml_block? (block | PARAGRAPH_END | SOFT_BREAK | SPACE)* EOF
     ;
 
-metadata
-    : YAML_START yaml_entry* YAML_END
-    ;
-
-yaml_entry
-    : YAML_KEY YAML_COLON YAML_VALUE (YAML_NL | EOF)
+yaml_block
+    : YAML_BLOCK
     ;
 
 block

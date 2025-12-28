@@ -2,18 +2,23 @@ package com.guaguaaaa.mymd.core.ast;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
-// Represents a code block node in the Pandoc AST.
-// The structure of a CodeBlock node in Pandoc is typically `[["", [], []], "the code"]`.
 public class CodeBlock extends Block {
     /**
      * Constructs a new CodeBlock node.
-     *
-     * @param content The text content of the code block.
+     * @param content The text content of the code.
+     * @param language The language identifier (e.g., "java", "python"). Can be null or empty.
      */
-    public CodeBlock(String content) {
+    public CodeBlock(String content, String language) {
         super("CodeBlock", Arrays.asList(
-                Arrays.asList("", Collections.emptyList(), Collections.emptyList()),
+                Arrays.asList(
+                        "", // ID
+                        (language != null && !language.isBlank())
+                                ? Collections.singletonList(language)
+                                : Collections.emptyList(),
+                        Collections.emptyList() // Key-Value pairs
+                ),
                 content
         ));
     }
