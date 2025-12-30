@@ -423,7 +423,7 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
     public PandocNode visitCitationInline(MyMDParser.CitationInlineContext ctx) {
         String fullText = ctx.citation().getText();
         String citeId = fullText.substring(2, fullText.length() - 1);
-        return new Cite(citeId);
+        return new RawInline("latex", "\\cite{" + citeId + "}");
     }
 
     /**
