@@ -157,6 +157,22 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
                 .map(node -> (Inline) node)
                 .collect(Collectors.toList());
 
+        if (!inlines.isEmpty()) {
+            Inline lastNode = inlines.get(inlines.size() - 1);
+
+            if (lastNode instanceof RawInline) {
+                RawInline raw = (RawInline) lastNode;
+                String content = raw.getContent();
+                if ("latex".equals(raw.getFormat()) && content != null && content.startsWith("\\ref{")) {
+                    String id = content.substring(5, content.length() - 1);
+
+                    inlines.remove(inlines.size() - 1);
+
+                    inlines.add(new RawInline("latex", "\\label{" + id + "}"));
+                }
+            }
+        }
+
         return new Header(level, inlines);
     }
 
@@ -169,6 +185,13 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
     public PandocNode visitBlockMath(MyMDParser.BlockMathContext ctx) {
         String fullText = ctx.BLOCK_MATH().getText();
         String mathText = fullText.substring(2, fullText.length() - 2).trim();
+
+        if (ctx.REF_ID() != null) {
+            String labelRaw = ctx.REF_ID().getText();
+            String labelId = labelRaw.substring(1, labelRaw.length() - 1);
+            mathText += " \\label{" + labelId + "}";
+        }
+
         MathNode mathNode = new MathNode(MathNode.MathType.DISPLAY_MATH, mathText);
         return new Para(Collections.singletonList(mathNode));
     }
@@ -246,11 +269,18 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
     public PandocNode visitImageInline(MyMDParser.ImageInlineContext ctx) {
         MyMDParser.ImageContext imgCtx = ctx.image();
         String url = imgCtx.url().getText();
+        List<Inline> altText;
 
-        List<Inline> altText = imgCtx.inline().stream()
-                .map(this::visit)
-                .map(node -> (Inline) node)
-                .collect(Collectors.toList());
+        if (imgCtx.REF_ID() != null) {
+            String text = imgCtx.REF_ID().getText();
+            String linkText = text.substring(1, text.length() - 1);
+            altText = Collections.singletonList(new Str(linkText));
+        } else {
+            altText = imgCtx.inline().stream()
+                    .map(this::visit)
+                    .map(node -> (Inline) node)
+                    .collect(Collectors.toList());
+        }
 
         return new Image(altText, url);
     }
@@ -259,11 +289,20 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
     public PandocNode visitLinkInline(MyMDParser.LinkInlineContext ctx) {
         MyMDParser.LinkContext linkCtx = ctx.link();
         String url = linkCtx.url().getText();
+        List<Inline> content;
 
-        List<Inline> content = linkCtx.inline().stream()
-                .map(this::visit)
-                .map(node -> (Inline) node)
-                .collect(Collectors.toList());
+        // 检查是 REF_ID 还是正常的 inline+
+        if (linkCtx.REF_ID() != null) {
+            String text = linkCtx.REF_ID().getText();
+            // 去掉方括号作为显示文本
+            String linkText = text.substring(1, text.length() - 1);
+            content = Collections.singletonList(new Str(linkText));
+        } else {
+            content = linkCtx.inline().stream()
+                    .map(this::visit)
+                    .map(node -> (Inline) node)
+                    .collect(Collectors.toList());
+        }
 
         return new Link(content, url);
     }
@@ -383,9 +422,31 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
     @Override
     public PandocNode visitCitationInline(MyMDParser.CitationInlineContext ctx) {
         String fullText = ctx.citation().getText();
-        // 去掉开头的 "[@" 和结尾的 "]"，提取 ID
         String citeId = fullText.substring(2, fullText.length() - 1);
         return new Cite(citeId);
+    }
+
+    /**
+     * 处理引文 [@citation]
+     * 转换为 LaTeX 的 \cite{citation}
+     */
+    @Override
+    public PandocNode visitCitation(MyMDParser.CitationContext ctx) {
+        String text = ctx.getText();
+        String citeId = text.substring(2, text.length() - 1);
+        return new RawInline("latex", "\\cite{" + citeId + "}");
+    }
+
+    /**
+     * 处理引用/标签语法 [type:id]
+     * 默认行为：生成 LaTeX 的 \ref{type:id}
+     * (如果在标题末尾，会在 visitHeader 中被转换为 \label)
+     */
+    @Override
+    public PandocNode visitRef(MyMDParser.RefContext ctx) {
+        String text = ctx.getText();
+        String labelId = text.substring(1, text.length() - 1);
+        return new RawInline("latex", "\\ref{" + labelId + "}");
     }
 
     /**

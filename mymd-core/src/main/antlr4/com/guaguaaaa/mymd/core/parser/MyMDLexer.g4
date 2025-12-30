@@ -27,8 +27,6 @@ DASH : '-' ;
 STAR : '*' ;
 BANG : '!' ;
 GT   : '>' ;
-LBRACKET : '[' ;
-RBRACKET : ']' ;
 LPAREN   : '(' ;
 RPAREN   : ')' ;
 
@@ -39,6 +37,10 @@ BLOCK_MATH: '$$' ( . | [\r\n] )*? '$$' ;
 INLINE_CODE : '`' ~[`\r\n]+ '`' ;
 CODE_BLOCK : '```' ( . | [\r\n] )*? '```' ;
 CITATION : '[' '@' [a-zA-Z0-9_:-]+ ']' ;
+REF_ID : '[' ~[ \t\r\n\]]+ ']' ;
+
+LBRACKET : '[' ;
+RBRACKET : ']' ;
 
 // Whitespace & Text
 HARD_BREAK

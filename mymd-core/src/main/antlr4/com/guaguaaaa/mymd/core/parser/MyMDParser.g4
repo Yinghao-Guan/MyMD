@@ -50,7 +50,7 @@ paragraph
     ;
 
 blockMath
-    : BLOCK_MATH (PARAGRAPH_END | EOF)?
+    : BLOCK_MATH SPACE? REF_ID? (PARAGRAPH_END | EOF)?
     ;
 
 bulletListBlock
@@ -72,6 +72,7 @@ listItem
 inline
     : image                   # ImageInline
     | link                    # LinkInline
+    | ref                     # RefInline
     | bold                    # BoldInline
     | italic                  # ItalicInline
     | INLINE_MATH             # InlineMathInline
@@ -87,7 +88,7 @@ inline
     | dash                    # DashInline
     | star                    # StarInline
     | HARD_BREAK              # HardBreakInline
-    | SOFT_BREAK              # SoftBreakInline
+    | { _input.LA(1) != DASH }? SOFT_BREAK  # SoftBreakInline
     | ESCAPED                 # EscapedInline
     | TEXT                    # TextInline
     | SPACE                   # SpaceInline
@@ -109,7 +110,14 @@ urlText  : URL_TEXT ;
 dash     : DASH ;
 star     : STAR ;
 
-image : BANG LBRACKET inline* RBRACKET LPAREN url RPAREN ;
-link  : LBRACKET inline+ RBRACKET LPAREN url RPAREN ;
+link
+    : (LBRACKET inline+ RBRACKET | REF_ID) LPAREN url RPAREN
+    ;
+
+image
+    : BANG (LBRACKET inline* RBRACKET | REF_ID) LPAREN url RPAREN
+    ;
 
 url : (URL_TEXT | DASH | STAR | TEXT)+ ;
+
+ref : REF_ID ;
