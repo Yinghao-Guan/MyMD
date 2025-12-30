@@ -4,10 +4,7 @@ target/
 !**/src/test/**/target/
 
 ### IntelliJ IDEA ###
-.idea/modules.xml
-.idea/jarRepositories.xml
-.idea/compiler.xml
-.idea/libraries/
+.idea/
 *.iws
 *.iml
 *.ipr
@@ -38,9 +35,7 @@ build/
 .DS_Store
 
 # 忽略本项目生成的输出文件
-/output.tex
-# 如果未来可能生成其他tex文件，也可以使用通配符
-# *.tex
+*.tex
 
 # 忽略通用的日志文件
 *.log
@@ -52,5 +47,5 @@ Thumbs.db
 /sandbox/
 /test_docs/
 
-# 忽略所有生成的 CSL 样式文件（因为这是动态生成的）
+# 忽略所有生成的 CSL 样式文件
 *.csl
