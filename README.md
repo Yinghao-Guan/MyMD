@@ -1,72 +1,95 @@
-# MyMD: A Custom Markup Editor with Live Preview and LaTeX Export
+# MyMD
 
-MyMD is a desktp application built with JavaFX that provides a simple and intuitive editor for a custom markup language. It features a live HTML preview that updates as you type and export documents to high-quality LaTeX files.
+![Java](https://img.shields.io/badge/Java-17%2B-blue)
+![JavaFX](https://img.shields.io/badge/GUI-JavaFX-orange)
+![ANTLR4](https://img.shields.io/badge/Parser-ANTLR4-red)
+![License](https://img.shields.io/badge/License-MIT-green)
 
-This project demonstrates the use of compiler-construction tools like ANTLR for parsing, integration with external command-line tools like Pandoc for document conversion, and desktop GUI development with JavaFX.
+**MyMD** is a custom markup language designed to provide modern syntax sugar for LaTeX.
 
-## Features
+Whilst it borrows the familiar syntactic design of Markdown to ensure a gentle learning curve, MyMD is fundamentally distinct. It is engineered specifically for academic writing and professional typesetting, bridging the gap between the simplicity of plain text and the rigorous standards of LaTeX.
 
-- **Live HTML Preview**: A split-pane view shows your raw markup and the rendered HTML output in real-time.
-- **Custom Markup Syntax**: Supports essential formatting features, including:
-    - Headers (Levels 1-6)
-    - Bold and Italic Text
-    - Inline Code and Code Blocks
-    - Inline and Display Math Formulas
-    - Bulleted Lists
-- **LaTeX Export**: Save your work as a `.tex` file, ready for professional academic or scientific typsetting.
-- **Extensible Architecture**: By leveraging Pandoc as a backend, the application can be easily extended to support dozens of other export formats (e.g., Docs, PDF, EPUB).
+This repository contains both the reference compiler for the MyMD language and a dedicated IDE environment.
 
-![Demo](docs/images/Demo.png)
+![Demo](docs/images/Demo.gif)
 
-## Technical Overview
+## ✨ Philosophy & Features
 
-The core of MyMD is its two-stage conversion pipeline:
-1. **Parsing with ANTLR**: The custom markup input is first processed by an ANTLR-generated parser, which is based on the grammar defined in `MyMD.g4`. This produces a concrete syntax tree.
-2. **AST Transformation**: A custom visitor class, `Pandoc AstVisitor`, traverses the syntax tree and builds an Abstract Syntax Tree (AST) that conforms to the Pandoc JSON format.
-3. **Conversion with Pandoc**: The generated JSON AST is piped to the Pandoc command-line tool. Pandoc then handles the final conversion to the target format (HTML or LaTeX).
+MyMD is not merely another Markdown dialect; it is a domain-specific language (DSL) for document compilation.
 
-## How to Run
+* **Modern Syntax for LaTeX**:
+  * MyMD abstracts away the verbosity of raw LaTeX without sacrificing its power.
+  * The core compiler translates high-level markup into professional-grade typesetting instructions.
+  * **Robust Parsing**: Unlike regex-based Markdown parsers, the MyMD language is defined by a formal grammar using **ANTLR4**, ensuring deterministic and accurate parsing of complex nested structures.
 
-**Prerequisites**:
-- JDK 21 or newer
-- Apache Maven
-- Pandoc (must be installed and available in your system's PATH)
+* **Academic-First Design**:
+  * **Mathematical Typesetting**: Native, first-class support for LaTeX-style mathematical formulae (`MathNode`) within the markup.
+  * **Citation Management**: Integrated CSL (Citation Style Language) generation (`CslGenerator`) and metadata processing, allowing seamless management of bibliographies and academic references directly from the markup source.
 
-**Instructions**:
-1. Clone the repository.
-2. Navigate to the project root directory.
-3. Run the application using the JavaFX Maven Plugin:
-```Bash
-mvn clean javafx:run
+* **The MyMD Workbench (`mymd-ide`)**:
+  * A reference IDE implementation designed to showcase the language's capabilities.
+  * **WYSIWYG PDF Preview**: Instead of converting to HTML, the IDE integrates **Mozilla PDF.js** to provide a real-time, high-fidelity preview of the final rendered document.
+  * **Live Compilation**: Instant feedback loop between your MyMD source code and the compiled output.
+
+## 🏗 System Architecture
+
+The project is organised as a Maven multi-module system, separating the language definition from the tooling:
+
+* **`mymd-core` (The Compiler)**:
+  * The heart of the project. Contains the formal `.g4` grammar definitions (ANTLR) for the MyMD language.
+  * Responsible for lexical analysis, parsing, and constructing the Abstract Syntax Tree (AST).
+  * Handles semantic analysis for academic features like citations and cross-references.
+
+* **`mymd-ide` (The Environment)**:
+  * A JavaFX-based graphical interface for writing MyMD documents.
+  * Integrates the core compiler with a WebView-based PDF renderer.
+  * Provides syntax highlighting (`SyntaxHighlighter`) and file management tailored to the MyMD workflow.
+
+## 🚀 Getting Started
+
+### Prerequisites
+* JDK 17 or higher
+* Maven 3.x
+
+### Build the Compiler & IDE
+
+Clone the repository and build the modules:
+
+```bash
+git clone [https://github.com/yinghao-guan/mymd.git](https://github.com/yinghao-guan/mymd.git)
+cd mymd
+mvn clean install
 ```
 
-## Testing
+### Launch the Environment
 
-Test project utilises JUnit 5 to ensure the quality and correctness of its core logic. Unit tests are focused on the `PandocAstVisitor` class, which handles the critical transformation from the ANTLR parse tree to the Pandoc AST.
+To start the reference IDE:
 
-The tests verify that various MyMD syntax elements are correctly and reliably parsed into their corresponding AST structures.
-
-### Running the Tests
-
-To run the suite of unit tests, navigate to the project's root directory and execute the following Maven command:
-```Bash
-mvn clean test
+```bash
+mvn javafx:run -pl mymd-ide
 ```
 
-## Future Development
+Alternatively, you may execute the `com.guaguaaaa.mymd.ide.MainApp` class directly from your preferred IDE.
 
-Whilst MyMD currently provides robust core functionality, there is a clear roadmap for future enhancements to develop it into a more full-featured and polished application.
+## 🛠 Development Guide
 
-1. **User Experience and Functionality**
-    - **File Menu**: Implement a standard top-level menu bar (`File -> Open, Save, Save As...`) to provide a more conventional user experience for file operations.
-    - **Expanded Export Options**: Add a user-facing control to select from a wider range of export formats supported by Pandoc, such as `.docx`, PDF, and EPUB.
-    - **Editor Syntax Highlighting**: Introduce real-time syntax highlighting for the MyMD markup in the input pane to improve readability and the writing experience.
-    - **Theme Customisation**: Provide options for light and dark user interface themes.
-2. **MyMD Syntax Expansion**
-    - **Table Support**: Enhance the ANLTR grammar to parse Markdown-style tables.
-    - **Image and Hyperlink Support**: Introduce syntax for embedding images and creating hyperlinks within documents.
-    - **Automatic Table of Contents**: Implement a feature to automatically generate a table of contents based on the document's header structure.
-3. **Architectural Improvements**
-    - **Asynchronous Processing**: Move the Pandoc conversion process to a background thread to ensure the user interface remains responsive, especially when processing large documents.
-    - **Incremental Parsing**: Investigate and implement an incremental parsing strategy, where only the modified parts of the document are re-analysed, to improve performance.
-    - **Pluginised Architecture**: Re-architect the application to support plugins, allowing for community contributions of new syntax rules or export targets.
+This project welcomes contributions aimed at refining the MyMD language specification or improving the compiler.
+
+1.  **Language Specification**: The formal grammar works are located in `mymd-core/src/main/antlr4/.../MyMDParser.g4`. Modifications here define the syntax of the language itself.
+2.  **Compiler Logic**: The transformation from text to AST is handled within the `com.guaguaaaa.mymd.core.ast` package.
+3.  **Citation Logic**: Research regarding bibliography parsing and CSL generation can be found in `com.guaguaaaa.mymd.core.util`.
+
+## 📝 Roadmap
+
+* [ ] Expand the formal grammar to support advanced LaTeX environments (tables, figures).
+* [ ] Implement configurable compiler backends (e.g., direct-to-PDF vs intermediate TeX).
+* [ ] Enhance the Citation Style Language (CSL) engine for broader compatibility.
+* [ ] Optimise the compiler's AST traversal for large manuscripts.
+
+## 🤝 Contributing
+
+Contributions are welcome. If you wish to propose changes to the language syntax itself, please open an Issue for discussion to ensure backward compatibility and design consistency.
+
+## 📄 License
+
+[MIT License](LICENSE)
