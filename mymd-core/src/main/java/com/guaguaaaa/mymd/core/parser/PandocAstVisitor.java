@@ -7,10 +7,13 @@ import com.google.gson.JsonObject;
 import com.guaguaaaa.mymd.core.ast.*;
 import com.guaguaaaa.mymd.core.util.MetadataConverter;
 
+import org.antlr.v4.runtime.tree.ParseTree;
+import org.antlr.v4.runtime.tree.TerminalNode;
+
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.ArrayList;
 
 
 /**
@@ -238,7 +241,7 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
     public PandocNode visitBulletList(MyMDParser.BulletListContext ctx) {
         List<List<Block>> items = ctx.listItem().stream()
                 .map(listItemCtx -> {
-                    List<Inline> inlines = listItemCtx.inline().stream()
+                    List<Inline> inlines = listItemCtx.inlineNoBreak().stream()
                             .map(this::visit)
                             .map(node -> (Inline) node)
                             .collect(Collectors.toList());
@@ -257,10 +260,20 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
      */
     @Override
     public PandocNode visitParagraph(MyMDParser.ParagraphContext ctx) {
-        List<Inline> inlines = ctx.inline().stream()
-                .map(this::visit)
-                .map(node -> (Inline) node)
-                .collect(Collectors.toList());
+
+        List<Inline> inlines = new ArrayList<>();
+        for (ParseTree child : ctx.children) {
+            if (child instanceof TerminalNode tn) {
+                if (tn.getSymbol().getType() == MyMDLexer.SOFT_BREAK) {
+                    inlines.add(new Space());
+                }
+                continue;
+            }
+            PandocNode node = visit(child);
+            if (node instanceof Inline inline) {
+                inlines.add(inline);
+            }
+        }
         return new Para(inlines);
     }
 
@@ -291,10 +304,8 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
         String url = linkCtx.url().getText();
         List<Inline> content;
 
-        // 检查是 REF_ID 还是正常的 inline+
         if (linkCtx.REF_ID() != null) {
             String text = linkCtx.REF_ID().getText();
-            // 去掉方括号作为显示文本
             String linkText = text.substring(1, text.length() - 1);
             content = Collections.singletonList(new Str(linkText));
         } else {
@@ -329,7 +340,6 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
 
     @Override
     public PandocNode visitUrlTextInline(MyMDParser.UrlTextInlineContext ctx) {
-        // 这就是那个关键修复：把被误认为 URL 的单词当做普通文本返回
         return new Str(ctx.getText());
     }
 
@@ -390,14 +400,6 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
      */
     @Override
     public PandocNode visitSpaceInline(MyMDParser.SpaceInlineContext ctx) { return new Space(); }
-
-    /**
-     * Visits a soft break inline element and creates a Pandoc Space node.
-     * @param ctx The parse tree context for the soft break.
-     * @return A {@link Space} node.
-     */
-    @Override
-    public PandocNode visitSoftBreakInline(MyMDParser.SoftBreakInlineContext ctx) { return new Space(); }
 
     /**
      * Visits a hard break inline element and creates a Pandoc LineBreak node.

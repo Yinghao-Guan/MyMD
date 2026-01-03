@@ -15,7 +15,7 @@ yaml_block
 block
     : horizontalRule          # HorizontalRuleBlock
     | blockquote              # BlockQuoteBlock
-    | bulletListBlock         # BulletListRule
+    | { _input.LA(1) == DASH && _input.LA(2) == SPACE }? bulletListBlock   # BulletListRule
     | codeBlock               # CodeBlockRule
     | header                  # HeaderRule
     | blockMath               # BlockMathRule
@@ -35,7 +35,7 @@ header
     ;
 
 paragraph
-    : inline+ (
+    : inlineNoBreak+ (SOFT_BREAK inlineNoBreak+)* (
           PARAGRAPH_END
         | EOF
         | { _input.LA(1) == BLOCK_MATH
@@ -45,9 +45,11 @@ paragraph
         || _input.LA(1) == H3
         || _input.LA(1) == H4
         || _input.LA(1) == H5
-        || _input.LA(1) == H6}?
+        || _input.LA(1) == H6
+        || (_input.LA(1) == DASH && _input.LA(2) == SPACE) }?
       )
     ;
+
 
 blockMath
     : BLOCK_MATH SPACE? REF_ID? (PARAGRAPH_END | EOF)?
@@ -66,7 +68,7 @@ bulletList
     ;
 
 listItem
-    : DASH SPACE inline+ (SOFT_BREAK | PARAGRAPH_END)
+    : DASH SPACE inlineNoBreak+ (SOFT_BREAK | PARAGRAPH_END | EOF)
     ;
 
 inline
@@ -88,11 +90,15 @@ inline
     | dash                    # DashInline
     | star                    # StarInline
     | HARD_BREAK              # HardBreakInline
-    | { _input.LA(1) != DASH }? SOFT_BREAK  # SoftBreakInline
     | ESCAPED                 # EscapedInline
     | TEXT                    # TextInline
     | SPACE                   # SpaceInline
     ;
+
+inlineNoBreak
+    : inline
+    ;
+
 
 citation : CITATION ;
 lbracket : LBRACKET ;
