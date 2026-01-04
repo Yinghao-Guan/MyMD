@@ -6,6 +6,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.guaguaaaa.mymd.core.ast.*;
 import com.guaguaaaa.mymd.core.util.MetadataConverter;
+import com.guaguaaaa.mymd.core.ast.Cite;
 
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
@@ -425,18 +426,14 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
     public PandocNode visitCitationInline(MyMDParser.CitationInlineContext ctx) {
         String fullText = ctx.citation().getText();
         String citeId = fullText.substring(2, fullText.length() - 1);
-        return new RawInline("latex", "\\cite{" + citeId + "}");
+        return new Cite(citeId);
     }
 
-    /**
-     * 处理引文 [@citation]
-     * 转换为 LaTeX 的 \cite{citation}
-     */
     @Override
     public PandocNode visitCitation(MyMDParser.CitationContext ctx) {
         String text = ctx.getText();
         String citeId = text.substring(2, text.length() - 1);
-        return new RawInline("latex", "\\cite{" + citeId + "}");
+        return new Cite(citeId);
     }
 
     /**
