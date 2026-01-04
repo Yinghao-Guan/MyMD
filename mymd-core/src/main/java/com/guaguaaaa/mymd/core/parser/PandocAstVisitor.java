@@ -242,10 +242,22 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
     public PandocNode visitBulletList(MyMDParser.BulletListContext ctx) {
         List<List<Block>> items = ctx.listItem().stream()
                 .map(listItemCtx -> {
-                    List<Inline> inlines = listItemCtx.inlineNoBreak().stream()
-                            .map(this::visit)
-                            .map(node -> (Inline) node)
-                            .collect(Collectors.toList());
+                    List<Inline> inlines = new ArrayList<>();
+
+                    for (ParseTree child : listItemCtx.children) {
+                        if (child instanceof TerminalNode tn) {
+                            if (tn.getSymbol().getType() == MyMDLexer.HARD_BREAK) {
+                                inlines.add(new LineBreak());
+                            }
+                            continue;
+                        }
+
+                        PandocNode node = visit(child);
+                        if (node instanceof Inline inline) {
+                            inlines.add(inline);
+                        }
+                    }
+
                     Para para = new Para(inlines);
                     return Collections.singletonList((Block) para);
                 })

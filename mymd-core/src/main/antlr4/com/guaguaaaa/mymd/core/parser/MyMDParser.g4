@@ -5,7 +5,8 @@ options { tokenVocab=MyMDLexer; }
 // ======================= Parser Rules =======================
 
 doc
-    : yaml_block? (block | PARAGRAPH_END | SOFT_BREAK | SPACE)* EOF
+    : yaml_block?
+    (block | PARAGRAPH_END | SOFT_BREAK | SPACE)* EOF
     ;
 
 yaml_block
@@ -23,7 +24,7 @@ block
     ;
 
 horizontalRule
-    : (DASH DASH DASH+ | STAR STAR STAR+) (SOFT_BREAK | PARAGRAPH_END | EOF)
+    : HR (SOFT_BREAK | PARAGRAPH_END | EOF)?
     ;
 
 blockquote
@@ -35,21 +36,26 @@ header
     ;
 
 paragraph
-    : inlineNoBreak+ (SOFT_BREAK inlineNoBreak+)* (
+    : inlineNoBreak+
+      (
+        { _input.LA(1) == SOFT_BREAK && !(_input.LA(2) == DASH && _input.LA(3) == SPACE) }?
+        SOFT_BREAK
+        inlineNoBreak+
+      )*
+      (
           PARAGRAPH_END
         | EOF
-        | { _input.LA(1) == BLOCK_MATH
-        || _input.LA(1) == CODE_BLOCK
-        || _input.LA(1) == H1
-        || _input.LA(1) == H2
-        || _input.LA(1) == H3
-        || _input.LA(1) == H4
-        || _input.LA(1) == H5
-        || _input.LA(1) == H6
-        || (_input.LA(1) == DASH && _input.LA(2) == SPACE) }?
+        | {
+            _input.LA(1) == BLOCK_MATH ||
+            _input.LA(1) == CODE_BLOCK ||
+            _input.LA(1) == H1 || _input.LA(1) == H2 || _input.LA(1) == H3 ||
+            _input.LA(1) == H4 || _input.LA(1) == H5 || _input.LA(1) == H6 ||
+            (_input.LA(1) == DASH && _input.LA(2) == SPACE) ||
+            // 特别处理：如果后面是软换行接列表（紧凑列表），也允许段落在此结束
+            (_input.LA(1) == SOFT_BREAK && _input.LA(2) == DASH && _input.LA(3) == SPACE)
+          }?
       )
     ;
-
 
 blockMath
     : BLOCK_MATH SPACE? REF_ID? (PARAGRAPH_END | EOF)?
@@ -68,10 +74,29 @@ bulletList
     ;
 
 listItem
-    : DASH SPACE inlineNoBreak+ (SOFT_BREAK | PARAGRAPH_END | EOF)
+    : DASH SPACE
+      inlineCommon+
+      (
+        { _input.LA(1) == HARD_BREAK && !(_input.LA(2) == DASH && _input.LA(3) == SPACE) }?
+        HARD_BREAK
+        inlineCommon+
+      )*
+      (
+        { _input.LA(1) == HARD_BREAK }? HARD_BREAK
+      )?
+      (SOFT_BREAK | PARAGRAPH_END | EOF)?
+    ;
+
+inlineNoBreak
+    : inline
     ;
 
 inline
+    : inlineCommon    # CommonInlineWrapper
+    | HARD_BREAK      # HardBreakInline
+    ;
+
+inlineCommon
     : image                   # ImageInline
     | link                    # LinkInline
     | ref                     # RefInline
@@ -89,14 +114,9 @@ inline
     | urlText                 # UrlTextInline
     | dash                    # DashInline
     | star                    # StarInline
-    | HARD_BREAK              # HardBreakInline
     | ESCAPED                 # EscapedInline
     | TEXT                    # TextInline
     | SPACE                   # SpaceInline
-    ;
-
-inlineNoBreak
-    : inline
     ;
 
 
@@ -104,7 +124,6 @@ citation : CITATION ;
 lbracket : LBRACKET ;
 rbracket : RBRACKET ;
 
-// 使用 BOLD_MARK
 bold     : BOLD_MARK inline+ BOLD_MARK ;
 italic   : STAR inline+ STAR ;
 
@@ -119,11 +138,9 @@ star     : STAR ;
 link
     : (LBRACKET inline+ RBRACKET | REF_ID) LPAREN url RPAREN
     ;
-
 image
     : BANG (LBRACKET inline* RBRACKET | REF_ID) LPAREN url RPAREN
     ;
-
 url : (URL_TEXT | DASH | STAR | TEXT)+ ;
 
 ref : REF_ID ;
