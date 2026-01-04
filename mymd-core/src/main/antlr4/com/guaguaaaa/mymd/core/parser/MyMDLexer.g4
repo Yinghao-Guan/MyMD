@@ -7,11 +7,9 @@ YAML_BLOCK
     : '---' [ \t]* [\r\n]+ ( . | [\r\n] )*? [\r\n]+ '---'
     ;
 
-// Horizontal Rule (水平分割线)
+// Horizontal Rule
 HR
     : '---' '-'*
-    | '***' '*'*
-    | '___' '_'*
     ;
 
 // Headers
