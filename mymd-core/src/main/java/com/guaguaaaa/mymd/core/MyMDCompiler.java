@@ -3,6 +3,7 @@ package com.guaguaaaa.mymd.core;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.guaguaaaa.mymd.core.api.CompilationResult;
+import com.guaguaaaa.mymd.core.api.Diagnostic;
 import com.guaguaaaa.mymd.core.ast.PandocNode;
 import com.guaguaaaa.mymd.core.parser.MyMDLexer;
 import com.guaguaaaa.mymd.core.parser.MyMDParser;
@@ -13,6 +14,7 @@ import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
 
 import java.util.Collections;
+import java.util.List;
 
 public class MyMDCompiler {
 
@@ -35,11 +37,18 @@ public class MyMDCompiler {
             return new CompilationResult(null, null, errorListener.getErrors());
         }
 
-        PandocAstVisitor visitor = new PandocAstVisitor();
-        visitor.visit(tree);
+        try {
+            PandocAstVisitor visitor = new PandocAstVisitor();
+            visitor.visit(tree);
+            String json = visitor.getPandocJson();
+            return new CompilationResult(null, json, Collections.emptyList());
 
-        String json = visitor.getPandocJson();
+        } catch (Exception e) {
+            String msg = e.getMessage();
+            if (msg == null) msg = e.getClass().getSimpleName();
 
-        return new CompilationResult(null, json, Collections.emptyList());
+            Diagnostic error = new Diagnostic(0, 0, 0, 0, "Compiler Error: " + msg);
+            return new CompilationResult(null, null, Collections.singletonList(error));
+        }
     }
 }

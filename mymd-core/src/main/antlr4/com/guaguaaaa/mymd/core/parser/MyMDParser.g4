@@ -17,6 +17,7 @@ block
     : horizontalRule          # HorizontalRuleBlock
     | blockquote              # BlockQuoteBlock
     | { _input.LA(1) == DASH && _input.LA(2) == SPACE }? bulletListBlock   # BulletListRule
+    | { _input.LA(1) == ORDERED_LIST_ITEM || _input.LA(1) == PLUS_ITEM }? orderedListBlock # OrderedListRule
     | codeBlock               # CodeBlockRule
     | header                  # HeaderRule
     | blockMath               # BlockMathRule
@@ -35,10 +36,36 @@ header
     : (H1 | H2 | H3 | H4 | H5 | H6) inline+ (PARAGRAPH_END | EOF)
     ;
 
+orderedListBlock
+    : orderedList (PARAGRAPH_END | EOF)?
+    ;
+
+orderedList
+    : orderedListItem+
+    ;
+
+orderedListItem
+    : (ORDERED_LIST_ITEM | PLUS_ITEM)
+      inlineCommon+
+      (
+        { _input.LA(1) == HARD_BREAK && !(_input.LA(2) == DASH && _input.LA(3) == SPACE) && !(_input.LA(2) == ORDERED_LIST_ITEM || _input.LA(2) == PLUS_ITEM) }?
+        HARD_BREAK
+        inlineCommon+
+      )*
+      (
+        { _input.LA(1) == HARD_BREAK }? HARD_BREAK
+      )?
+      (SOFT_BREAK | EOF)?
+    ;
+
 paragraph
     : inlineNoBreak+
       (
-        { _input.LA(1) == SOFT_BREAK && !(_input.LA(2) == DASH && _input.LA(3) == SPACE) }?
+        {
+           _input.LA(1) == SOFT_BREAK &&
+           !(_input.LA(2) == DASH && _input.LA(3) == SPACE) &&
+           !(_input.LA(2) == ORDERED_LIST_ITEM || _input.LA(2) == PLUS_ITEM)
+        }?
         SOFT_BREAK
         inlineNoBreak+
       )*
@@ -51,8 +78,9 @@ paragraph
             _input.LA(1) == H1 || _input.LA(1) == H2 || _input.LA(1) == H3 ||
             _input.LA(1) == H4 || _input.LA(1) == H5 || _input.LA(1) == H6 ||
             (_input.LA(1) == DASH && _input.LA(2) == SPACE) ||
-            // 特别处理：如果后面是软换行接列表（紧凑列表），也允许段落在此结束
-            (_input.LA(1) == SOFT_BREAK && _input.LA(2) == DASH && _input.LA(3) == SPACE)
+            (_input.LA(1) == SOFT_BREAK && _input.LA(2) == DASH && _input.LA(3) == SPACE) ||
+            _input.LA(1) == ORDERED_LIST_ITEM || _input.LA(1) == PLUS_ITEM ||
+            (_input.LA(1) == SOFT_BREAK && (_input.LA(2) == ORDERED_LIST_ITEM || _input.LA(2) == PLUS_ITEM))
           }?
       )
     ;
@@ -84,7 +112,7 @@ listItem
       (
         { _input.LA(1) == HARD_BREAK }? HARD_BREAK
       )?
-      (SOFT_BREAK | PARAGRAPH_END | EOF)?
+      (SOFT_BREAK | EOF)?
     ;
 
 inlineNoBreak
@@ -117,6 +145,8 @@ inlineCommon
     | ESCAPED                 # EscapedInline
     | TEXT                    # TextInline
     | SPACE                   # SpaceInline
+    | ORDERED_LIST_ITEM       # TextInline
+    | PLUS_ITEM               # TextInline
     ;
 
 

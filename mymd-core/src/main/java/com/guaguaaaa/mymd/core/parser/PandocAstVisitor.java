@@ -7,6 +7,7 @@ import com.google.gson.JsonObject;
 import com.guaguaaaa.mymd.core.ast.*;
 import com.guaguaaaa.mymd.core.util.MetadataConverter;
 import com.guaguaaaa.mymd.core.ast.Cite;
+import com.guaguaaaa.mymd.core.util.ListMarker;
 
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
@@ -404,7 +405,19 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
      * @return A {@link Str} node.
      */
     @Override
-    public PandocNode visitTextInline(MyMDParser.TextInlineContext ctx) { return new Str(ctx.TEXT().getText()); }
+    public PandocNode visitTextInline(MyMDParser.TextInlineContext ctx) {
+        String text;
+        if (ctx.TEXT() != null) {
+            text = ctx.TEXT().getText();
+        } else if (ctx.ORDERED_LIST_ITEM() != null) {
+            text = ctx.ORDERED_LIST_ITEM().getText();
+        } else if (ctx.PLUS_ITEM() != null) {
+            text = ctx.PLUS_ITEM().getText();
+        } else {
+            text = "";
+        }
+        return new Str(text);
+    }
 
     /**
      * Visits a space inline element and creates a Pandoc Space node.
@@ -496,5 +509,109 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
     @Override
     public PandocNode visitRBracketInline(MyMDParser.RBracketInlineContext ctx) {
         return new Str("]");
+    }
+
+    @Override
+    public PandocNode visitOrderedListBlock(MyMDParser.OrderedListBlockContext ctx) {
+        return visit(ctx.orderedList());
+    }
+
+    @Override
+    public PandocNode visitOrderedList(MyMDParser.OrderedListContext ctx) {
+        List<List<Block>> items = new ArrayList<>();
+
+        ListMarker firstMarker = null;
+
+        for (int i = 0; i < ctx.orderedListItem().size(); i++) {
+            MyMDParser.OrderedListItemContext itemCtx = ctx.orderedListItem(i);
+
+            // 1. 获取 Marker 文本
+            String markerText;
+            if (itemCtx.ORDERED_LIST_ITEM() != null) {
+                markerText = itemCtx.ORDERED_LIST_ITEM().getText().trim();
+            } else {
+                markerText = "+";
+            }
+
+            // 2. 解析 Marker
+            if (!markerText.equals("+")) {
+                ListMarker currentMarker = ListMarker.parse(markerText);
+
+                if (firstMarker == null) {
+                    firstMarker = currentMarker;
+                } else {
+                    // 3. 严格一致性检查
+                    // 检查 Style (1. vs a.) 和 Delim (. vs ))
+                    // 注意：这里我们实现了 "i" 的自动匹配逻辑
+
+                    boolean styleMatch = (currentMarker.style == firstMarker.style);
+
+                    // 特殊处理：如果首项是 Alpha (a.)，当前项看起来是 Roman (i.)
+                    // 但 ListMarker 把它解析成了 Roman。
+                    // 我们需要允许这种情况通过。
+                    if (!styleMatch) {
+                        boolean isAlphaRomanConflict =
+                                (firstMarker.style == ListAttributes.Style.LowerAlpha && currentMarker.style == ListAttributes.Style.LowerRoman) ||
+                                        (firstMarker.style == ListAttributes.Style.UpperAlpha && currentMarker.style == ListAttributes.Style.UpperRoman);
+
+                        // 只有当 marker 文本确实既能是 Roman 也能是 Alpha 时 (如 'i', 'v', 'x') 才允许
+                        // 我们的 ListMarker 逻辑已经把 single char 'i' 归为 Roman
+                        // 所以这里如果是 Alpha list, 遇到了 Roman 'i', 我们放行。
+                        if (isAlphaRomanConflict) {
+                            // 放行，视为匹配
+                            styleMatch = true;
+                        }
+                    }
+
+                    if (!styleMatch || currentMarker.delim != firstMarker.delim) {
+                        // 抛出语法错误
+                        throw new RuntimeException("Syntax Error: List marker mismatch. Expected " +
+                                firstMarker.style + "/" + firstMarker.delim +
+                                ", found " + currentMarker.style + "/" + currentMarker.delim);
+                    }
+                }
+            } else {
+                // "+" case: inherits, no check needed.
+                if (firstMarker == null) {
+                    // Edge case: List starts with +
+                    // Default to 1. Decimal
+                    // (Or throw error? Markdown usually allows loose start)
+                }
+            }
+
+            // 4. 收集内容 (Logic copied from BulletList)
+            List<Inline> inlines = new ArrayList<>();
+            for (ParseTree child : itemCtx.children) {
+                if (child instanceof TerminalNode tn) {
+                    if (tn.getSymbol().getType() == MyMDLexer.HARD_BREAK) {
+                        inlines.add(new LineBreak());
+                    }
+                    continue;
+                }
+                // exclude markers
+                if (child == itemCtx.ORDERED_LIST_ITEM() || child == itemCtx.PLUS_ITEM()) continue;
+
+                PandocNode node = visit(child);
+                if (node instanceof Inline inline) {
+                    inlines.add(inline);
+                }
+            }
+            items.add(Collections.singletonList(new Para(inlines)));
+        }
+
+        // 5. 构建 Attributes
+        ListAttributes attrs;
+        if (firstMarker != null) {
+            attrs = new ListAttributes(
+                    firstMarker.startNumber,
+                    firstMarker.style,
+                    firstMarker.delim
+            );
+        } else {
+            // Default fallback
+            attrs = new ListAttributes(1, ListAttributes.Style.Decimal, ListAttributes.Delim.Period);
+        }
+
+        return new OrderedList(attrs, items);
     }
 }

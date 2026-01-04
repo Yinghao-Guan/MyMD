@@ -37,6 +37,21 @@ CODE_BLOCK : '```' ( . | [\r\n] )*? '```' ;
 CITATION : '[' '@' [a-zA-Z0-9_:-]+ ']' ;
 REF_ID : '[' ~[ \t\r\n\]]+ ']' ;
 
+PLUS_ITEM
+    : '+' [ \t]+
+    ;
+
+ORDERED_LIST_ITEM
+    : (
+        // Case A: (1) or (a) or (iv)
+        '(' ( [0-9]+ | [a-zA-Z] | [IVXLCDMivxlcdm]+ ) ')'
+        |
+        // Case B: 1. or a. or iv. or 1) or a) or iv)
+        ( [0-9]+ | [a-zA-Z] | [IVXLCDMivxlcdm]+ ) ('.' | ')')
+      )
+      [ \t]+
+    ;
+
 LBRACKET : '[' ;
 RBRACKET : ']' ;
 
