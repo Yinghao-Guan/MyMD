@@ -156,7 +156,7 @@ public class MainViewModel {
                 pdfCommand.add("-t"); pdfCommand.add("pdf");
                 pdfCommand.add("-o"); pdfCommand.add(pdfPath);
                 pdfCommand.add("--pdf-engine=xelatex");
-                pdfCommand.add("-V"); pdfCommand.add("mainfont=Microsoft YaHei"); // 注意：非Windows系统可能需要修改此字体
+                // pdfCommand.add("-V"); pdfCommand.add("mainfont=Microsoft YaHei");
 
                 if (useBib) {
                     pdfCommand.add("--citeproc");
