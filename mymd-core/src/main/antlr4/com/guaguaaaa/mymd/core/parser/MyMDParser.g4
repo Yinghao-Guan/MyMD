@@ -36,28 +36,6 @@ header
     : (H1 | H2 | H3 | H4 | H5 | H6) inline+ (PARAGRAPH_END | EOF)
     ;
 
-orderedListBlock
-    : orderedList (PARAGRAPH_END | EOF)?
-    ;
-
-orderedList
-    : orderedListItem+
-    ;
-
-orderedListItem
-    : (ORDERED_LIST_ITEM | PLUS_ITEM)
-      inlineCommon+
-      (
-        { _input.LA(1) == HARD_BREAK && !(_input.LA(2) == DASH && _input.LA(3) == SPACE) && !(_input.LA(2) == ORDERED_LIST_ITEM || _input.LA(2) == PLUS_ITEM) }?
-        HARD_BREAK
-        inlineCommon+
-      )*
-      (
-        { _input.LA(1) == HARD_BREAK }? HARD_BREAK
-      )?
-      (SOFT_BREAK | EOF)?
-    ;
-
 paragraph
     : inlineNoBreak+
       (
@@ -78,9 +56,9 @@ paragraph
             _input.LA(1) == H1 || _input.LA(1) == H2 || _input.LA(1) == H3 ||
             _input.LA(1) == H4 || _input.LA(1) == H5 || _input.LA(1) == H6 ||
             (_input.LA(1) == DASH && _input.LA(2) == SPACE) ||
-            (_input.LA(1) == SOFT_BREAK && _input.LA(2) == DASH && _input.LA(3) == SPACE) ||
             _input.LA(1) == ORDERED_LIST_ITEM || _input.LA(1) == PLUS_ITEM ||
-            (_input.LA(1) == SOFT_BREAK && (_input.LA(2) == ORDERED_LIST_ITEM || _input.LA(2) == PLUS_ITEM))
+            (_input.LA(1) == SOFT_BREAK && (_input.LA(2) == ORDERED_LIST_ITEM || _input.LA(2) == PLUS_ITEM)) ||
+            (_input.LA(1) == SOFT_BREAK && _input.LA(2) == DASH && _input.LA(3) == SPACE)
           }?
       )
     ;
@@ -89,31 +67,60 @@ blockMath
     : BLOCK_MATH SPACE? REF_ID? (PARAGRAPH_END | EOF)?
     ;
 
-bulletListBlock
-    : bulletList (PARAGRAPH_END | EOF)?
-    ;
-
 codeBlock
     : CODE_BLOCK (PARAGRAPH_END | EOF)?
+    ;
+
+// ======================= List Rules (Refactored) =======================
+
+bulletListBlock
+    : bulletList (PARAGRAPH_END | EOF)?
     ;
 
 bulletList
     : listItem+
     ;
 
+// FIX: 极其优雅的嵌套列表规则
+// 结构：头符号 + 行内内容 + (可选: 换行 -> INDENT -> 任意Body -> DEDENT)
 listItem
     : DASH SPACE
       inlineCommon+
       (
-        { _input.LA(1) == HARD_BREAK && !(_input.LA(2) == DASH && _input.LA(3) == SPACE) }?
-        HARD_BREAK
-        inlineCommon+
-      )*
-      (
-        { _input.LA(1) == HARD_BREAK }? HARD_BREAK
+        (SOFT_BREAK | HARD_BREAK | PARAGRAPH_END)
+        INDENT
+        nestedBody
+        DEDENT
       )?
       (SOFT_BREAK | EOF)?
     ;
+
+orderedListBlock
+    : orderedList (PARAGRAPH_END | EOF)?
+    ;
+
+orderedList
+    : orderedListItem+
+    ;
+
+orderedListItem
+    : (ORDERED_LIST_ITEM | PLUS_ITEM)
+      inlineCommon+
+      (
+        (SOFT_BREAK | HARD_BREAK | PARAGRAPH_END)
+        INDENT
+        nestedBody
+        DEDENT
+      )?
+      (SOFT_BREAK | EOF)?
+    ;
+
+// 嵌套内容体：可以包含 block (子列表, 代码块等) 或空行
+nestedBody
+    : (block | PARAGRAPH_END | SOFT_BREAK | SPACE)+
+    ;
+
+// ======================= Inline Rules =======================
 
 inlineNoBreak
     : inline
@@ -149,14 +156,11 @@ inlineCommon
     | PLUS_ITEM               # TextInline
     ;
 
-
 citation : CITATION ;
 lbracket : LBRACKET ;
 rbracket : RBRACKET ;
-
 bold     : BOLD_MARK inline+ BOLD_MARK ;
 italic   : STAR inline+ STAR ;
-
 bang     : BANG ;
 gt       : GT ;
 lparen   : LPAREN ;
@@ -168,9 +172,11 @@ star     : STAR ;
 link
     : (LBRACKET inline+ RBRACKET | REF_ID) LPAREN url RPAREN
     ;
+
 image
     : BANG (LBRACKET inline* RBRACKET | REF_ID) LPAREN url RPAREN
     ;
+
 url : (URL_TEXT | DASH | STAR | TEXT)+ ;
 
 ref : REF_ID ;

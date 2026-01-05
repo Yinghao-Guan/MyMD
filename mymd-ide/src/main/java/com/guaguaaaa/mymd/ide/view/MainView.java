@@ -48,6 +48,7 @@ public class MainView {
     private MainViewModel viewModel;
     private ExecutorService executor = Executors.newSingleThreadExecutor();
     private List<Diagnostic> currentDiagnostics = new ArrayList<>();
+    private final SyntaxHighlighter syntaxHighlighter = new SyntaxHighlighter();
 
     public void setViewModel(MainViewModel viewModel) {
         this.viewModel = viewModel;
@@ -171,27 +172,27 @@ public class MainView {
     }
 
     private void computeHighlightingAsync(String text) {
-        List<Diagnostic> diagnosticsSnapshot = new ArrayList<>(this.currentDiagnostics);
-
         Task<StyleSpans<Collection<String>>> task = new Task<>() {
             @Override
             protected StyleSpans<Collection<String>> call() {
-                StyleSpans<Collection<String>> syntaxSpans = SyntaxHighlighter.computeHighlighting(text);
-                StyleSpans<Collection<String>> errorSpans = SyntaxHighlighter.computeErrorHighlighting(text, diagnosticsSnapshot);
-                return syntaxSpans.overlay(errorSpans, (syntaxStyle, errorStyle) -> {
-                    Collection<String> combined = new ArrayList<>(syntaxStyle);
-                    combined.addAll(errorStyle);
-                    return combined;
-                });
+                return syntaxHighlighter.computeHighlighting(text);
             }
         };
 
         task.setOnSucceeded(event -> {
-            if (codeArea.getLength() == text.length()) {
-                codeArea.setStyleSpans(0, task.getValue());
+            StyleSpans<Collection<String>> spans = task.getValue();
+            if (spans != null) {
+                // FIX: 长度检查，防止 IndexOutOfBoundsException
+                int currentLength = codeArea.getLength();
+                int spansLength = spans.length();
+
+                if (currentLength == spansLength) {
+                    codeArea.setStyleSpans(0, spans);
+                }
             }
         });
 
+        // 提交任务到线程池
         executor.execute(task);
     }
 

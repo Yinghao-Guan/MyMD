@@ -242,25 +242,17 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
     @Override
     public PandocNode visitBulletList(MyMDParser.BulletListContext ctx) {
         List<List<Block>> items = ctx.listItem().stream()
-                .map(listItemCtx -> {
-                    List<Inline> inlines = new ArrayList<>();
-
-                    for (ParseTree child : listItemCtx.children) {
-                        if (child instanceof TerminalNode tn) {
-                            if (tn.getSymbol().getType() == MyMDLexer.HARD_BREAK) {
-                                inlines.add(new LineBreak());
-                            }
-                            continue;
-                        }
-
-                        PandocNode node = visit(child);
-                        if (node instanceof Inline inline) {
-                            inlines.add(inline);
+                .map(itemCtx -> {
+                    // 收集行内子节点 (排除 DASH 和 SPACE)
+                    // Parser 规则: DASH SPACE inlineCommon+ ...
+                    // itemCtx.children 包含所有 token
+                    List<ParseTree> inlineNodes = new ArrayList<>();
+                    for (ParseTree child : itemCtx.children) {
+                        if (child instanceof MyMDParser.InlineCommonContext) {
+                            inlineNodes.add(child);
                         }
                     }
-
-                    Para para = new Para(inlines);
-                    return Collections.singletonList((Block) para);
+                    return processListItem(inlineNodes, itemCtx.nestedBody());
                 })
                 .collect(Collectors.toList());
 
@@ -525,7 +517,7 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
         for (int i = 0; i < ctx.orderedListItem().size(); i++) {
             MyMDParser.OrderedListItemContext itemCtx = ctx.orderedListItem(i);
 
-            // 1. 获取 Marker 文本
+            // Marker Logic
             String markerText;
             if (itemCtx.ORDERED_LIST_ITEM() != null) {
                 markerText = itemCtx.ORDERED_LIST_ITEM().getText().trim();
@@ -533,85 +525,81 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
                 markerText = "+";
             }
 
-            // 2. 解析 Marker
             if (!markerText.equals("+")) {
                 ListMarker currentMarker = ListMarker.parse(markerText);
-
                 if (firstMarker == null) {
                     firstMarker = currentMarker;
                 } else {
-                    // 3. 严格一致性检查
-                    // 检查 Style (1. vs a.) 和 Delim (. vs ))
-                    // 注意：这里我们实现了 "i" 的自动匹配逻辑
-
+                    // Strict Check logic
                     boolean styleMatch = (currentMarker.style == firstMarker.style);
-
-                    // 特殊处理：如果首项是 Alpha (a.)，当前项看起来是 Roman (i.)
-                    // 但 ListMarker 把它解析成了 Roman。
-                    // 我们需要允许这种情况通过。
                     if (!styleMatch) {
                         boolean isAlphaRomanConflict =
                                 (firstMarker.style == ListAttributes.Style.LowerAlpha && currentMarker.style == ListAttributes.Style.LowerRoman) ||
                                         (firstMarker.style == ListAttributes.Style.UpperAlpha && currentMarker.style == ListAttributes.Style.UpperRoman);
-
-                        // 只有当 marker 文本确实既能是 Roman 也能是 Alpha 时 (如 'i', 'v', 'x') 才允许
-                        // 我们的 ListMarker 逻辑已经把 single char 'i' 归为 Roman
-                        // 所以这里如果是 Alpha list, 遇到了 Roman 'i', 我们放行。
-                        if (isAlphaRomanConflict) {
-                            // 放行，视为匹配
-                            styleMatch = true;
-                        }
+                        if (isAlphaRomanConflict) styleMatch = true;
                     }
-
                     if (!styleMatch || currentMarker.delim != firstMarker.delim) {
-                        // 抛出语法错误
                         throw new RuntimeException("Syntax Error: List marker mismatch. Expected " +
                                 firstMarker.style + "/" + firstMarker.delim +
                                 ", found " + currentMarker.style + "/" + currentMarker.delim);
                     }
                 }
-            } else {
-                // "+" case: inherits, no check needed.
-                if (firstMarker == null) {
-                    // Edge case: List starts with +
-                    // Default to 1. Decimal
-                    // (Or throw error? Markdown usually allows loose start)
-                }
             }
 
-            // 4. 收集内容 (Logic copied from BulletList)
-            List<Inline> inlines = new ArrayList<>();
+            // Content Logic (Updated to use processListItem)
+            List<ParseTree> inlineNodes = new ArrayList<>();
             for (ParseTree child : itemCtx.children) {
-                if (child instanceof TerminalNode tn) {
-                    if (tn.getSymbol().getType() == MyMDLexer.HARD_BREAK) {
-                        inlines.add(new LineBreak());
-                    }
-                    continue;
-                }
-                // exclude markers
-                if (child == itemCtx.ORDERED_LIST_ITEM() || child == itemCtx.PLUS_ITEM()) continue;
-
-                PandocNode node = visit(child);
-                if (node instanceof Inline inline) {
-                    inlines.add(inline);
+                if (child instanceof MyMDParser.InlineCommonContext) {
+                    inlineNodes.add(child);
                 }
             }
-            items.add(Collections.singletonList(new Para(inlines)));
+            items.add(processListItem(inlineNodes, itemCtx.nestedBody()));
         }
 
-        // 5. 构建 Attributes
+        // Attributes Logic
         ListAttributes attrs;
         if (firstMarker != null) {
-            attrs = new ListAttributes(
-                    firstMarker.startNumber,
-                    firstMarker.style,
-                    firstMarker.delim
-            );
+            attrs = new ListAttributes(firstMarker.startNumber, firstMarker.style, firstMarker.delim);
         } else {
-            // Default fallback
             attrs = new ListAttributes(1, ListAttributes.Style.Decimal, ListAttributes.Delim.Period);
         }
 
         return new OrderedList(attrs, items);
+    }
+
+    private List<Block> processListItem(List<ParseTree> inlineChildren, MyMDParser.NestedBodyContext nestedBodyCtx) {
+        List<Block> blocks = new ArrayList<>();
+
+        // 1. 处理首行文本 (The "Header" Paragraph)
+        List<Inline> firstParaInlines = new ArrayList<>();
+        for (ParseTree child : inlineChildren) {
+            // 跳过标记符号本身的 Token 已经在调用方处理了，这里只传了 children
+            // 但我们需要过滤掉 null 或者非 inline 的东西
+            PandocNode node = visit(child);
+            if (node instanceof Inline inline) {
+                firstParaInlines.add(inline);
+            }
+        }
+        if (!firstParaInlines.isEmpty()) {
+            blocks.add(new Para(firstParaInlines));
+        }
+
+        // 2. 处理嵌套内容 (Nested Body)
+        if (nestedBodyCtx != null) {
+            for (ParseTree child : nestedBodyCtx.children) {
+                PandocNode node = visit(child);
+                if (node instanceof Block block) {
+                    blocks.add(block);
+                } else if (node instanceof List) {
+                    // 有时候 visitBlock 可能返回 List<Block> (虽然现在架构主要是单个Block)
+                    // 以防万一
+                    try {
+                        blocks.addAll((List<Block>) node);
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+
+        return blocks;
     }
 }
