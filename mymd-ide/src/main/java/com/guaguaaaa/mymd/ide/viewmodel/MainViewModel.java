@@ -117,6 +117,7 @@ public class MainViewModel {
                 String basePath = sourcePath.lastIndexOf(".") > 0 ?
                         sourcePath.substring(0, sourcePath.lastIndexOf(".")) :
                         sourcePath;
+                File workDir = sourceFile.getParentFile();
                 String pdfPath = basePath + ".pdf";
                 String texPath = basePath + ".tex";
 
@@ -146,7 +147,7 @@ public class MainViewModel {
                     texCommand.add("--metadata=link-bibliography=false");
                 }
 
-                runProcessWithInput(texCommand, jsonOutput);
+                runProcessWithInput(texCommand, jsonOutput, workDir);
                 System.out.println("LaTeX file generated: " + texPath);
 
                 // 2. Generate PDF (.pdf)
@@ -165,8 +166,7 @@ public class MainViewModel {
                     pdfCommand.add("--metadata=link-bibliography=false");
                 }
 
-                // 使用改进的辅助方法运行进程，防止死锁并获取错误输出
-                ProcessExecutionResult pdfResult = runProcessWithInput(pdfCommand, jsonOutput);
+                ProcessExecutionResult pdfResult = runProcessWithInput(pdfCommand, jsonOutput, workDir);
 
                 Platform.runLater(() -> {
                     isCompiling.set(false);
@@ -209,8 +209,30 @@ public class MainViewModel {
     /**
      * 辅助方法：安全地运行进程并写入标准输入，同时读取标准错误
      */
-    private ProcessExecutionResult runProcessWithInput(List<String> command, String input) throws IOException, InterruptedException {
+    private ProcessExecutionResult runProcessWithInput(
+            List<String> command,
+            String input
+    ) throws IOException, InterruptedException {
+        return runProcessWithInput(command, input, null);
+    }
+
+    private ProcessExecutionResult runProcessWithInput(List<String> command, String input, File workingDir)
+            throws IOException, InterruptedException {
+
         ProcessBuilder pb = new ProcessBuilder(command);
+
+        if (workingDir != null) {
+            pb.directory(workingDir);
+        }
+
+        if (workingDir != null) {
+            String key = "TEXINPUTS";
+            String existing = pb.environment().getOrDefault(key, "");
+            String sep = java.io.File.pathSeparator; // Windows 是 ;  Linux/mac 是 :
+            String value = workingDir.getAbsolutePath() + sep + existing;
+            pb.environment().put(key, value);
+        }
+
         Process process = pb.start();
 
         // 写入 stdin

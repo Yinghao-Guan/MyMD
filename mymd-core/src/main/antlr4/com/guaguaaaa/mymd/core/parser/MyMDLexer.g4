@@ -162,13 +162,21 @@ fragment BALANCED_BRACES
     : '{' ( ~[{}] | BALANCED_BRACES )* '}'
     ;
 
+fragment OPTIONAL_BRACKETS
+    : '[' ~[\r\n\]]* ']'
+    ;
+
 RAW_LATEX_WITH_ARGS
-    : '\\' [a-zA-Z]+ [ \t]* (BALANCED_BRACES)+
+    : '\\' [a-zA-Z]+ '*'? [ \t]*
+      (OPTIONAL_BRACKETS [ \t]*)*
+      (BALANCED_BRACES)+
     ;
 
 RAW_LATEX_CMD
-    : '\\' [a-zA-Z]+
+    : '\\' [a-zA-Z]+ '*'?
+      (OPTIONAL_BRACKETS)*
     ;
+
 
 RAW_LATEX_SYMBOL
     : '\\' ~[a-zA-Z0-9\r\n\t ]

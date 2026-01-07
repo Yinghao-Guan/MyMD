@@ -80,73 +80,98 @@ public class MainView {
 
         // 监听生成的 PDF 路径
         this.viewModel.generatedPdfPathProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null && !newVal.isEmpty()) {
-                File pdfFile = new File(newVal);
-                if (pdfFile.exists()) {
-                    try {
-                        // 1. 读取数据 (这里已经有了 ViewModel 的 100ms 缓冲，更安全)
-                        byte[] pdfBytes = Files.readAllBytes(pdfFile.toPath());
-                        String base64 = Base64.getEncoder().encodeToString(pdfBytes);
+            if (newVal == null || newVal.isEmpty()) return;
 
-                        // 2. 检查 WebView 是否已经加载了 viewer.html
-                        String currentLoc = previewWebView.getEngine().getLocation();
-                        boolean isAlreadyLoaded = currentLoc != null && currentLoc.endsWith("viewer.html");
+            File pdfFile = new File(newVal);
+            if (!pdfFile.exists()) return;
 
-                        // 定义通用的 JS 注入代码：调用 PDF.js 打开数据
-                        // 我们定义一个 updatePDF 函数，如果不存在则等待
-                        String updateJs =
-                                "function updatePDF(base64Data) {" +
-                                        "   try {" +
-                                        "       var pdfData = atob(base64Data);" +
-                                        "       var uint8Array = new Uint8Array(pdfData.length);" +
-                                        "       for (var i = 0; i < pdfData.length; i++) {" +
-                                        "           uint8Array[i] = pdfData.charCodeAt(i);" +
-                                        "       }" +
-                                        "       if (window.PDFViewerApplication) {" +
-                                        "           window.PDFViewerApplication.open({ data: uint8Array });" +
-                                        "       }" +
-                                        "   } catch(e) { console.error('Update Error: ' + e); }" +
-                                        "}" +
-                                        // 立即尝试调用
-                                        "if (window.PDFViewerApplication && window.PDFViewerApplication.open) {" +
-                                        "    updatePDF('" + base64 + "');" +
-                                        "}";
+            try {
+                byte[] pdfBytes = Files.readAllBytes(pdfFile.toPath());
+                String base64 = Base64.getEncoder().encodeToString(pdfBytes);
 
-                        Platform.runLater(() -> {
-                            if (isAlreadyLoaded) {
-                                // === 方案 A: 软更新 (Soft Update) ===
-                                // 页面已在，直接喂数据，不刷新页面
-                                previewWebView.getEngine().executeScript(updateJs);
-                            } else {
-                                // === 方案 B: 首次加载 (First Load) ===
-                                var viewerResource = getClass().getResource("pdfjs/web/viewer.html");
-                                if (viewerResource == null) return;
+                Platform.runLater(() -> {
+                    var engine = previewWebView.getEngine();
 
-                                previewWebView.getEngine().load(viewerResource.toExternalForm());
+                    // 判断 viewer.html 是否已加载
+                    String currentLoc = engine.getLocation();
+                    boolean isAlreadyLoaded = currentLoc != null && currentLoc.endsWith("viewer.html");
 
-                                // 监听加载完成
-                                previewWebView.getEngine().getLoadWorker().stateProperty().addListener((observable, oldState, newState) -> {
-                                    if (newState == Worker.State.SUCCEEDED) {
-                                        // 页面加载完后，还需要轮询等待 PDF.js 内部初始化完成
-                                        String initJs =
-                                                "var checkTimer = setInterval(function() {" +
-                                                        "   if (window.PDFViewerApplication && window.PDFViewerApplication.open) {" +
-                                                        "       clearInterval(checkTimer);" +
-                                                        "       updatePDF('" + base64 + "');" +
-                                                        "   }" +
-                                                        "}, 100);" + // 每100ms检查一次
-                                                        updateJs; // 附带上 updatePDF 函数定义
+                    // 1) 定义 updatePDF（不包含 base64，避免超长注入）
+                    // 用 window.updatePDF 挂全局，防止作用域问题
+                    String defineUpdatePdfFn =
+                            "window.updatePDF = window.updatePDF || function(base64Data) {" +
+                                    "  try {" +
+                                    "    var pdfData = atob(base64Data);" +
+                                    "    var uint8Array = new Uint8Array(pdfData.length);" +
+                                    "    for (var i = 0; i < pdfData.length; i++) {" +
+                                    "      uint8Array[i] = pdfData.charCodeAt(i);" +
+                                    "    }" +
+                                    "    if (window.PDFViewerApplication && window.PDFViewerApplication.open) {" +
+                                    "      window.PDFViewerApplication.open({ data: uint8Array });" +
+                                    "    }" +
+                                    "  } catch(e) { console.error('Update Error: ' + e); }" +
+                                    "};";
 
-                                        previewWebView.getEngine().executeScript(initJs);
-                                    }
-                                });
+                    // 2) 分块注入 base64 到 window.__pdfBase64（避免 JavaFX executeScript 字符串长度上限）
+                    Runnable injectBase64Chunks = () -> {
+                        engine.executeScript("window.__pdfBase64 = '';");
+                        int chunkSize = 100_000;
+                        for (int i = 0; i < base64.length(); i += chunkSize) {
+                            String chunk = base64.substring(i, Math.min(base64.length(), i + chunkSize));
+                            engine.executeScript("window.__pdfBase64 += '" + chunk + "';");
+                        }
+                    };
+
+                    // 3) 调用 updatePDF（使用 token 防抖：只执行最后一次）
+                    // 每次更新都递增 token，避免旧的 interval 在后面“回放旧数据”
+                    String token = Long.toString(System.currentTimeMillis());
+                    engine.executeScript("window.__mymdPdfToken = '" + token + "';");
+
+                    Runnable openPdfWhenReady = () -> {
+                        // 轮询等待 PDF.js 初始化完成，然后再 open
+                        // 只在 token 匹配时执行，确保不会被旧任务覆盖
+                        String waitReady =
+                                "var __t = window.__mymdPdfToken;" +
+                                        "var __timer = setInterval(function() {" +
+                                        "  if (window.__mymdPdfToken !== __t) { clearInterval(__timer); return; }" +
+                                        "  if (window.PDFViewerApplication && window.PDFViewerApplication.open && window.updatePDF) {" +
+                                        "    clearInterval(__timer);" +
+                                        "    try {" +
+                                        "      window.updatePDF(window.__pdfBase64);" +
+                                        "      window.__pdfBase64 = '';" +
+                                        "    } catch(e) { console.error('Open Error: ' + e); }" +
+                                        "  }" +
+                                        "}, 50);";
+                        engine.executeScript(waitReady);
+                    };
+
+                    if (isAlreadyLoaded) {
+                        // === 方案 A: 软更新 (Soft Update) ===
+                        engine.executeScript(defineUpdatePdfFn);
+                        injectBase64Chunks.run();
+                        openPdfWhenReady.run();
+                    } else {
+                        // === 方案 B: 首次加载 (First Load) ===
+                        var viewerResource = getClass().getResource("pdfjs/web/viewer.html");
+                        if (viewerResource == null) return;
+
+                        // 重要：避免重复添加 listener 导致多次触发
+                        // 先 load，然后在 SUCCEEDED 时注入函数与数据
+                        engine.load(viewerResource.toExternalForm());
+
+                        engine.getLoadWorker().stateProperty().addListener((observable, oldState2, newState2) -> {
+                            if (newState2 == Worker.State.SUCCEEDED) {
+                                // 定义函数 + 注入数据 + 等 ready 再打开
+                                engine.executeScript(defineUpdatePdfFn);
+                                injectBase64Chunks.run();
+                                openPdfWhenReady.run();
                             }
                         });
-
-                    } catch (Exception e) {
-                        e.printStackTrace();
                     }
-                }
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         });
 
