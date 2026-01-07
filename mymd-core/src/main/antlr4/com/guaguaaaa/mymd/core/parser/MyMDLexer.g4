@@ -8,7 +8,6 @@ tokens {
 
 // ======================= Java Members =======================
 @header {
-    // FIX: 删除了 package 声明，防止与 Maven 插件生成的重复
     import java.util.LinkedList;
     import java.util.Stack;
     import org.antlr.v4.runtime.CommonToken;
@@ -21,7 +20,6 @@ tokens {
     private LinkedList<Token> pendingTokens = new LinkedList<>();
     // 标记当前是否处于行首 (初始为 true)
     private boolean atStartOfLine = true;
-
     @Override
     public Token nextToken() {
         // 1. 如果队列里有刚才生成的虚拟 Token (如 DEDENT)，优先返回
@@ -31,7 +29,6 @@ tokens {
 
         // 2. 获取下一个真实的物理 Token
         Token t = super.nextToken();
-
         // 3. 处理 EOF (文件结束时，必须关闭所有缩进)
         if (t.getType() == EOF) {
             handleEOF();
@@ -52,14 +49,12 @@ tokens {
             // 情况 A: 行首是空格 -> 计算缩进深度
             if (t.getType() == SPACE) {
                 int indent = getTextLength(t.getText());
-
                 // 严格模式检查
                 if (indent % 4 != 0) {
                      throw new RuntimeException("Indentation Error: Indentation must be a multiple of 4 spaces. Found: " + indent);
                 }
 
                 processIndentation(indent, t);
-
                 atStartOfLine = false;
 
                 if (!pendingTokens.isEmpty()) {
@@ -101,7 +96,6 @@ tokens {
 
     private void processIndentation(int targetIndent, Token triggerToken) {
         int current = indentLengths.peek();
-
         if (targetIndent > current) {
             indentLengths.push(targetIndent);
             createToken(INDENT, triggerToken);
@@ -142,12 +136,45 @@ tokens {
 // ======================= Lexer Rules =======================
 
 YAML_BLOCK
-    : '---' [ \t]* [\r\n]+ ( . | [\r\n] )*? [\r\n]+ '---'
+    : '---' [ \t]* [\r\n]+ ( . | [\r\n] )*?
+    [\r\n]+ '---'
     ;
 
 HR
     : '---' '-'*
     ;
+
+// ======================= LaTeX First Rules (High Priority) =======================
+
+ESCAPED_BACKSLASH : '\\\\' ;
+ESCAPED_NEWLINE   : '\\n' ;
+ESCAPED_STAR      : '\\*' ;
+ESCAPED_LBRACKET  : '\\[' ;
+ESCAPED_RBRACKET  : '\\]' ;
+ESCAPED_HYPHEN    : '\\-' ;
+ESCAPED_GRAVE     : '\\`' ;
+
+LATEX_ENV_BLOCK
+    : '\\begin{' [a-zA-Z0-9*]+ '}' ( . | [\r\n] )*? '\\end{' [a-zA-Z0-9*]+ '}'
+    ;
+
+fragment BALANCED_BRACES
+    : '{' ( ~[{}] | BALANCED_BRACES )* '}'
+    ;
+
+RAW_LATEX_WITH_ARGS
+    : '\\' [a-zA-Z]+ [ \t]* (BALANCED_BRACES)+
+    ;
+
+RAW_LATEX_CMD
+    : '\\' [a-zA-Z]+
+    ;
+
+RAW_LATEX_SYMBOL
+    : '\\' ~[a-zA-Z0-9\r\n\t ]
+    ;
+
+// ======================= Standard Markdown Rules =======================
 
 H1 : '#' [ \t]+ ;
 H2 : '##' [ \t]+ ;
@@ -172,7 +199,6 @@ CITATION : '[' '@' [a-zA-Z0-9_:-]+ ']' ;
 REF_ID : '[' ~[ \t\r\n\]]+ ']' ;
 
 PLUS_ITEM : '+' [ \t]+ ;
-
 ORDERED_LIST_ITEM
     : (
         '(' ( [0-9]+ | [a-zA-Z] | [IVXLCDMivxlcdm]+ ) ')'
@@ -187,7 +213,6 @@ RBRACKET : ']' ;
 
 HARD_BREAK
     : '  ' ('\r'? '\n')
-    | '\\'
     ;
 
 PARAGRAPH_END : ('\r'? '\n') ('\r'? '\n')+ ;

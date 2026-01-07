@@ -123,8 +123,12 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
         return visit(ctx.header());
     }
 
-    // --- Block 处理 ---
+    @Override
+    public PandocNode visitLatexEnv(MyMDParser.LatexEnvContext ctx) {
+        return new RawBlock("latex", ctx.LATEX_ENV_BLOCK().getText());
+    }
 
+    // --- Block 处理 ---
     @Override
     public PandocNode visitHorizontalRuleBlock(MyMDParser.HorizontalRuleBlockContext ctx) {
         return new HorizontalRule();
@@ -284,6 +288,27 @@ public class PandocAstVisitor extends MyMDParserBaseVisitor<PandocNode> {
     }
 
     // --- Inline Elements ---
+    @Override
+    public PandocNode visitEscapedExceptionInline(MyMDParser.EscapedExceptionInlineContext ctx) {
+        MyMDParser.EscapeExceptionContext escCtx = ctx.escapeException();
+        if (escCtx.ESCAPED_NEWLINE() != null) return new LineBreak();
+
+        String text = escCtx.getText();
+        // Remove the leading backslash
+        // \\ -> \
+        // \* -> *
+        // \- -> -
+        // \[ -> [
+        // \] -> ]
+        // \` -> `
+        return new Str(text.substring(1));
+    }
+
+    @Override
+    public PandocNode visitRawLatexInline(MyMDParser.RawLatexInlineContext ctx) {
+        return new RawInline("latex", ctx.getText());
+    }
+
     @Override
     public PandocNode visitImageInline(MyMDParser.ImageInlineContext ctx) {
         MyMDParser.ImageContext imgCtx = ctx.image();

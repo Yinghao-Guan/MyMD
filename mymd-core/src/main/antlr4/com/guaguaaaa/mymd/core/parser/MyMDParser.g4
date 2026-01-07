@@ -21,6 +21,7 @@ block
     | codeBlock               # CodeBlockRule
     | header                  # HeaderRule
     | blockMath               # BlockMathRule
+    | latexEnv                # LatexEnvBlockRule
     | paragraph               # ParagraphBlock
     ;
 
@@ -29,12 +30,14 @@ horizontalRule
     ;
 
 blockquote
-    : GT SPACE? inline+ (PARAGRAPH_END | EOF)
+    : GT SPACE?
+      inline+ (SOFT_BREAK | PARAGRAPH_END | EOF)
     ;
 
 header
-    : (H1 | H2 | H3 | H4 | H5 | H6) inline+ (PARAGRAPH_END | EOF)
+    : (H1 | H2 | H3 | H4 | H5 | H6) inline+ (SOFT_BREAK | PARAGRAPH_END | EOF)
     ;
+
 
 paragraph
     : inlineNoBreak+
@@ -42,7 +45,16 @@ paragraph
         {
            _input.LA(1) == SOFT_BREAK &&
            !(_input.LA(2) == DASH && _input.LA(3) == SPACE) &&
-           !(_input.LA(2) == ORDERED_LIST_ITEM || _input.LA(2) == PLUS_ITEM)
+           !(_input.LA(2) == ORDERED_LIST_ITEM || _input.LA(2) == PLUS_ITEM) &&
+           !(_input.LA(2) == H1 || _input.LA(2) == H2 || _input.LA(2) == H3 ||
+             _input.LA(2) == H4 || _input.LA(2) == H5 || _input.LA(2) == H6) &&
+           !(_input.LA(2) == HR) &&
+           !(_input.LA(2) == GT) &&
+           !(_input.LA(2) == CODE_BLOCK) &&
+           !(_input.LA(2) == BLOCK_MATH) &&
+           !(_input.LA(2) == LATEX_ENV_BLOCK) &&
+           !(_input.LA(2) == INDENT) &&
+           !(_input.LA(2) == DEDENT)
         }?
         SOFT_BREAK
         inlineNoBreak+
@@ -52,26 +64,44 @@ paragraph
         | EOF
         | {
             _input.LA(1) == BLOCK_MATH ||
+            _input.LA(1) == LATEX_ENV_BLOCK ||
             _input.LA(1) == CODE_BLOCK ||
             _input.LA(1) == H1 || _input.LA(1) == H2 || _input.LA(1) == H3 ||
             _input.LA(1) == H4 || _input.LA(1) == H5 || _input.LA(1) == H6 ||
             (_input.LA(1) == DASH && _input.LA(2) == SPACE) ||
             _input.LA(1) == ORDERED_LIST_ITEM || _input.LA(1) == PLUS_ITEM ||
-            (_input.LA(1) == SOFT_BREAK && (_input.LA(2) == ORDERED_LIST_ITEM || _input.LA(2) == PLUS_ITEM)) ||
-            (_input.LA(1) == SOFT_BREAK && _input.LA(2) == DASH && _input.LA(3) == SPACE)
+            (_input.LA(1) == SOFT_BREAK && (
+                _input.LA(2) == BLOCK_MATH ||
+                _input.LA(2) == LATEX_ENV_BLOCK ||
+                _input.LA(2) == CODE_BLOCK ||
+                _input.LA(2) == H1 || _input.LA(2) == H2 || _input.LA(2) == H3 ||
+                _input.LA(2) == H4 || _input.LA(2) == H5 || _input.LA(2) == H6 ||
+                (_input.LA(2) == DASH && _input.LA(3) == SPACE) ||
+                _input.LA(2) == ORDERED_LIST_ITEM || _input.LA(2) == PLUS_ITEM ||
+                _input.LA(2) == HR ||
+                _input.LA(2) == GT ||
+                _input.LA(2) == INDENT ||
+                _input.LA(2) == DEDENT
+            ))
           }?
       )
     ;
 
 blockMath
-    : BLOCK_MATH SPACE? REF_ID? (PARAGRAPH_END | EOF)?
+    : BLOCK_MATH SPACE? REF_ID?
+      (PARAGRAPH_END | EOF)?
+    ;
+
+latexEnv
+    : LATEX_ENV_BLOCK
+      (PARAGRAPH_END | EOF)?
     ;
 
 codeBlock
     : CODE_BLOCK (PARAGRAPH_END | EOF)?
     ;
 
-// ======================= List Rules (Refactored) =======================
+// ======================= List Rules =======================
 
 bulletListBlock
     : bulletList (PARAGRAPH_END | EOF)?
@@ -81,8 +111,6 @@ bulletList
     : listItem+
     ;
 
-// FIX: 极其优雅的嵌套列表规则
-// 结构：头符号 + 行内内容 + (可选: 换行 -> INDENT -> 任意Body -> DEDENT)
 listItem
     : DASH SPACE
       inlineCommon+
@@ -115,7 +143,6 @@ orderedListItem
       (SOFT_BREAK | EOF)?
     ;
 
-// 嵌套内容体：可以包含 block (子列表, 代码块等) 或空行
 nestedBody
     : (block | PARAGRAPH_END | SOFT_BREAK | SPACE)+
     ;
@@ -154,6 +181,24 @@ inlineCommon
     | SPACE                   # SpaceInline
     | ORDERED_LIST_ITEM       # TextInline
     | PLUS_ITEM               # TextInline
+    | escapeException         # EscapedExceptionInline
+    | rawLatex                # RawLatexInline
+    ;
+
+escapeException
+    : ESCAPED_BACKSLASH
+    | ESCAPED_NEWLINE
+    | ESCAPED_STAR
+    | ESCAPED_LBRACKET
+    | ESCAPED_RBRACKET
+    | ESCAPED_HYPHEN
+    | ESCAPED_GRAVE
+    ;
+
+rawLatex
+    : RAW_LATEX_WITH_ARGS
+    | RAW_LATEX_CMD
+    | RAW_LATEX_SYMBOL
     ;
 
 citation : CITATION ;
@@ -168,15 +213,7 @@ rparen   : RPAREN ;
 urlText  : URL_TEXT ;
 dash     : DASH ;
 star     : STAR ;
-
-link
-    : (LBRACKET inline+ RBRACKET | REF_ID) LPAREN url RPAREN
-    ;
-
-image
-    : BANG (LBRACKET inline* RBRACKET | REF_ID) LPAREN url RPAREN
-    ;
-
-url : (URL_TEXT | DASH | STAR | TEXT)+ ;
-
-ref : REF_ID ;
+link     : (LBRACKET inline+ RBRACKET | REF_ID) LPAREN url RPAREN ;
+image    : BANG (LBRACKET inline* RBRACKET | REF_ID) LPAREN url RPAREN ;
+url      : (URL_TEXT | DASH | STAR | TEXT)+ ;
+ref      : REF_ID ;
