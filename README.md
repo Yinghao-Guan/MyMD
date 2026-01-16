@@ -56,7 +56,7 @@ The project is organised as a Maven multi-module system, separating the language
 Clone the repository and build the modules:
 
 ```bash
-git clone [https://github.com/yinghao-guan/mymd.git](https://github.com/yinghao-guan/mymd.git)
+git clone https://github.com/yinghao-guan/mymd.git
 cd mymd
 mvn clean install
 ```
@@ -75,7 +75,7 @@ Alternatively, you may execute the `com.guaguaaaa.mymd.ide.MainApp` class direct
 
 This project welcomes contributions aimed at refining the MyMD language specification or improving the compiler.
 
-1.  **Language Specification**: The formal grammar works are located in `mymd-core/src/main/antlr4/.../MyMDParser.g4`. Modifications here define the syntax of the language itself.
+1.  **Language Specification**: The formal grammar works are located in `mymd-core/src/main/antlr4/com/guaguaaaa/mymd/core/parser/MyMDParser.g4`. Modifications here define the syntax of the language itself.
 2.  **Compiler Logic**: The transformation from text to AST is handled within the `com.guaguaaaa.mymd.core.ast` package.
 3.  **Citation Logic**: Research regarding bibliography parsing and CSL generation can be found in `com.guaguaaaa.mymd.core.util`.
 
