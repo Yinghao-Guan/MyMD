@@ -56,7 +56,7 @@ The project is organised as a Maven multi-module system, separating the language
 Clone the repository and build the modules:
 
 ```bash
-git clone [https://github.com/yinghao-guan/acadown.git](https://github.com/yinghao-guan/acadown.git)
+git clone https://github.com/yinghao-guan/acadown.git
 cd acadown
 mvn clean install
 ```
